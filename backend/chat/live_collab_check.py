@@ -15,7 +15,7 @@ import os
 from django.test import TestCase, override_settings
 
 from chat.llm.fake import FakeReading
-from chat.test_agent_collab import SETTINGS, CollabFixture
+from chat.tests.test_agent_collab import SETTINGS, CollabFixture
 
 LIVE = os.environ.get("COLLAB_LIVE") == "1"
 TRANSPORT = "TRANSPORT_CAR"

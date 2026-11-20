@@ -124,7 +124,7 @@
           "카드"
         ],
         "operationId": "replaceCardSelection",
-        "description": "selectedCardIds는 본인의 전체 카드 선택을 대체합니다. 특정 카드사/연결만 바꾸지 않습니다. 필드 생략은 오류이고 []는 전체 선택 해제입니다. 목록에 빠진 기존 선택 카드는 해제하지만 금융기관 연결·과거 거래·기존 고정지출의 결제 수단은 유지합니다. 같은 선택을 재전송해도 성공하며 중복 기록이나 차감은 만들지 않습니다. Idempotency-Key는 쓰지 않습니다.\n\nID 형식 오류·없는 카드·타인 소유·선택 불가 카드를 동일한 400 invalid(fields.selectedCardIds)로 처리하며 하나라도 잘못되면 전체 미저장입니다. 허용 외 필드는 400입니다. 실패/미조회 때문에 기존 선택을 빈 배열로 덮어쓰지 않습니다. 카드 선택만으로 예산·고정비·기존 거래를 다시 계산하지 않습니다.\n\n응답은 후보 GET과 같은 items이며 변경된 isSelected를 반영합니다. [] 저장 후에도 후보가 있으면 isSelected:false인 후보 목록을 반환합니다. 선택 저장 시각으로 fetchedAt을 바꾸지 않습니다.\n\n미정: 중복 ID·최대 선택 수·동시 저장 세부 정책, 휴면/해지 카드 및 relogin 상태에서 최초 선택 허용 범위. 미정인 제한은 스키마에 추가하지 않았습니다.",
+        "description": "selectedCardIds는 본인의 전체 카드 선택을 대체합니다. 특정 카드사/연결만 바꾸지 않습니다. 필드 생략은 오류이고 []는 전체 선택 해제입니다. 목록에 빠진 기존 선택 카드는 해제하지만 금융기관 연결·과거 거래·기존 고정지출의 결제 수단은 유지합니다. 같은 선택을 재전송해도 성공하며 중복 기록이나 차감은 만들지 않습니다. Idempotency-Key는 쓰지 않습니다.\n\nID 형식 오류·없는 카드·타인 소유·선택 불가 카드를 동일한 400 invalid(fields.selectedCardIds)로 처리하며 하나라도 잘못되면 전체 미저장입니다. 허용 외 필드는 400입니다. 실패/미조회 때문에 기존 선택을 빈 배열로 덮어쓰지 않습니다. 카드 선택만으로 예산·고정비·기존 거래를 다시 계산하지 않습니다.\n\n응답은 후보 GET과 같은 items이며 변경된 isSelected를 반영합니다. [] 저장 후에도 후보가 있으면 isSelected:false인 후보 목록을 반환합니다. 선택 저장 시각으로 fetchedAt을 바꾸지 않습니다.",
         "x-source": "docs/api/cards.md",
         "responses": {
           "200": {
@@ -1808,7 +1808,7 @@
           "cardType": {
             "type": "string",
             "nullable": true,
-            "description": "저장된 기관 카드 종류. 정규화 기준 미정."
+            "description": "저장된 기관 카드 종류."
           },
           "cardStatus": {
             "type": "string",
@@ -1859,7 +1859,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "전체 선택을 대체. 빈 배열은 전체 해제. 중복/최대 개수 정책은 미정."
+            "description": "전체 선택을 대체. 빈 배열은 전체 해제."
           }
         },
         "required": [
@@ -2017,7 +2017,7 @@
             "type": "string",
             "format": "date",
             "nullable": true,
-            "description": "출금 예정일. 없으면 결제 예정일을 출금일로 보고, 둘 다 모르면 납부 예정 생성 안 함 (11/5)."
+            "description": "출금 예정일. 없으면 결제 예정일을 출금일로 보고, 둘 다 모르면 납부 예정 생성 안 함."
           },
           "paymentAccount": {
             "description": "결제 계좌를 모르면 객체 전체 null.",
@@ -2077,7 +2077,7 @@
             "description": "청구 상세. 미확보 null, 정상 확인된 0건 [], 일부면 확보분만."
           },
           "paymentCheck": {
-            "description": "앞으로 낼 금액 확인 (11/06). 카드사 통합 청구서만, 그 밖은 null.",
+            "description": "앞으로 낼 금액 확인. 카드사 통합 청구서만, 그 밖은 null.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CardBillCheckStatus"
@@ -2591,7 +2591,7 @@
               "no_charge",
               "total_mismatch"
             ],
-            "description": "paid_by_transactions=연결된 계좌 출금이 청구액 이상 · user_confirmed=사용자 확인 · recheck=확인 뒤 청구액이 바뀌었거나 출금 기록과 다름(조용히 덮지 않음) · unchecked=확인 없음/나중에 확인 · no_charge=청구액 0원 이하 · total_mismatch=청구 총액이 상세 합계보다 작아 원래 청구액을 모름(총액 0원이라고 낼 금액 없음으로 보지 않음, 11/06)"
+            "description": "paid_by_transactions=연결된 계좌 출금이 청구액 이상 · user_confirmed=사용자 확인 · recheck=확인 뒤 청구액이 바뀌었거나 출금 기록과 다름(조용히 덮지 않음) · unchecked=확인 없음/나중에 확인 · no_charge=청구액 0원 이하 · total_mismatch=청구 총액이 상세 합계보다 작아 원래 청구액을 모름(총액 0원이라고 낼 금액 없음으로 보지 않음)"
           },
           "remainingAmount": {
             "type": "integer",

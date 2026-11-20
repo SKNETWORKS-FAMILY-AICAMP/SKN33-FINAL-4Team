@@ -153,13 +153,13 @@ payment_due 30 · financial_transaction 414 · payment_match 30 · transaction_l
 로컬 PostgreSQL이 켜져 있어야 한다. 테스트 전용 DB를 생성·정리하며 외부 LLM은 호출하지 않는다.
 
 ```bash
-.venv/bin/python backend/manage.py test spending_fixture spending_analysis chat.test_engine chat.test_llm --settings=spending_fixture.settings --verbosity 1 --noinput
-PYTHONPATH=backend:scripts/router_eval .venv/bin/python -m unittest discover -s scripts/router_eval -p 'test_*.py'
+.venv/bin/python backend/manage.py test spending_fixture spending_analysis chat.tests.test_engine chat.tests.test_llm --settings=spending_fixture.settings --verbosity 1 --noinput
+PYTHONPATH=backend:scripts/router_eval .venv/bin/python -m unittest discover -s tests/router_eval -p 'test_*.py'
 ```
 
-- 새 회귀: `spending_analysis/test_evidence_contract.py`, `spending_fixture/test_explanation_scope.py`.
-- 실제 서비스 API 연결·후속 대화: `chat/test_engine.py`.
-- 잘못된 대상의 근거를 성공으로 세지 않는 평가: `scripts/router_eval/test_explanation_contract.py`.
+- 새 회귀: `spending_analysis/tests/test_evidence_contract.py`, `spending_fixture/tests/test_explanation_scope.py`.
+- 실제 서비스 API 연결·후속 대화: `chat/tests/test_engine.py`.
+- 잘못된 대상의 근거를 성공으로 세지 않는 평가: `tests/router_eval/test_explanation_contract.py`.
 - 기존 `budget_data`의 validated/approved 선택 문제 1건은 expected failure로 남아 있다.
 
 이번 실행 결과: 서비스·소비 분석 328건 중 327건 통과 + 기존 예상 실패 1건, 평가 도구 37건 모두 통과.
@@ -292,14 +292,14 @@ npm run dev -- --config vite.fixture.config.js
 ### 검증 명령
 
 ```bash
-.venv/bin/python backend/manage.py test spending_fixture spending_analysis chat.test_engine chat.test_llm --settings=spending_fixture.settings --verbosity 1 --noinput
-PYTHONPATH=backend:scripts/router_eval .venv/bin/python -m unittest discover -s scripts/router_eval -p 'test_*.py'
+.venv/bin/python backend/manage.py test spending_fixture spending_analysis chat.tests.test_engine chat.tests.test_llm --settings=spending_fixture.settings --verbosity 1 --noinput
+PYTHONPATH=backend:scripts/router_eval .venv/bin/python -m unittest discover -s tests/router_eval -p 'test_*.py'
 # frontend/에서
 npm run lint
 npm run build -- --config vite.fixture.config.js
 ```
 
-새 테스트 `spending_fixture/test_investigation.py`는 작은 거래 표의 손계산 정답, 원래 범위 유지, 결제 없음/시각 누락, 불필요한 조회 생략, 입력 가설 우선권,
+새 테스트 `spending_fixture/tests/test_investigation.py`는 작은 거래 표의 손계산 정답, 원래 범위 유지, 결제 없음/시각 누락, 불필요한 조회 생략, 입력 가설 우선권,
 LLM에 금액·실제 거래 가게 이름을 보내지 않는 것을 확인한다. 과거 원문 재생용 `{axis, subject}` 읽기 호환은 남겼지만 실제 LLM 출력 스키마는 코드 기반 계약만 사용한다.
 
 ### 승인된 추가 40회 검증 기록

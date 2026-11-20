@@ -111,7 +111,7 @@ class LLMTests(unittest.TestCase):
         with patch.dict(os.environ,{'LLM_MODEL':'test-model'}), patch.object(agent,'_request_tool',return_value={'increased':['FASHION_SHOPPING']}) as call:
             out=self.run_case(variant='priority_increase_first',increase_threshold=0.1,allow_external=True,api_key='test')
         self.assertEqual(out['llm_status'],'completed')
-        from budgets.test_design_explain import assert_ledger
+        from budgets.tests.test_design_explain import assert_ledger
         assert_ledger(self, out['explanations'], out['allocations'])
         self.assertEqual(out['increased'],['FASHION_SHOPPING'])
         call.assert_called_once()

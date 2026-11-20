@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "머니쿠션 API 명세서",
-    "version": "2026-10-24",
-    "description": "현재 계약 72개 · 10개 기능 묶음. **명세 작성 완료와 API 구현 완료는 다릅니다.**\n\n현재 구현 72개(CSRF·인증·금융 동의 및 연결·카드·대출·거래·고정지출·정기 저축·홈·이전 대화·작업 확인·예산), 목업 0개입니다. 전체 명세는 읽기 전용이며, 구현된 API는 [현재 서버 확인](/api/docs/runtime/)에서 직접 실행할 수 있습니다. 예산 조정 자유 대화는 router/live와 실제 ML·재원·감액 정책 연결 상태를 확인하세요.\n\n기준: docs/api/*.md, docs/API_RULES.md, 결정 AA·AB. 요청·응답은 camelCase, 금액은 원 단위 정수, ID는 UUID, 날짜는 YYYY-MM-DD, 시각은 ISO 8601. 빈 값은 null이며 PATCH의 생략은 유지, null은 허용된 칸만 비웁니다. 알 수 없는 요청 필드는 400.\n\n인증은 Django 세션 쿠키입니다(JWT 없음). 변경 요청에는 X-CSRFToken, 일부 생성·확정 요청에는 Idempotency-Key를 보냅니다. 세션 없음은 403 not_authenticated, 주소의 없는·남의·잘못된 ID는 404, 본문의 부적합한 ID는 400입니다. 오류의 fields는 입력 항목 오류일 때만 존재합니다.\n\n미정 항목은 설명에 남겼습니다. ML 에이전트 연동·쿠션, 비정기 준비금(2차), 그 밖의 아직 작성하지 않은 명세는 포함하지 않습니다."
+    "version": "1.0.0",
+    "description": "머니쿠션 서버 API 전체 명세입니다. 직접 실행은 [현재 서버 확인](/api/docs/runtime/) 화면에서 합니다.\n\n공통 규칙(docs/API_RULES.md): 요청·응답은 camelCase, 금액은 원 단위 정수, ID는 UUID(청년 정책은 정책번호), 날짜는 YYYY-MM-DD, 시각은 ISO 8601. 빈 값은 null이며 PATCH에서 생략한 칸은 그대로, null은 허용된 칸만 비웁니다. 알 수 없는 요청 칸은 400입니다.\n\n인증은 Django 세션 쿠키입니다(JWT 없음). 변경 요청에는 X-CSRFToken, 생성·확정 요청에는 Idempotency-Key를 보냅니다. 세션 없음은 403 not_authenticated, 주소의 없는·남의·잘못된 ID는 404, 본문의 부적합한 ID는 400입니다. 오류의 fields는 입력 항목 오류일 때만 있습니다.\n\n예산 조정·청년 정책 자유 대화는 CHAT_ENGINE=router · CHAT_LLM=live 설정과 실제 자료가 있어야 동작합니다."
   },
   "servers": [
     {
@@ -14,6 +14,9 @@
   "tags": [
     {
       "name": "공통 · 인증"
+    },
+    {
+      "name": "내 정보"
     },
     {
       "name": "금융 동의 · 연결"
@@ -41,6 +44,12 @@
     },
     {
       "name": "예산"
+    },
+    {
+      "name": "쿠션"
+    },
+    {
+      "name": "청년 정책"
     }
   ],
   "security": [
@@ -51,12 +60,12 @@
   "paths": {
     "/api/csrf/": {
       "get": {
-        "summary": "[구현] 저장 전 보안값 준비",
+        "summary": "저장 전 보안값 준비",
         "operationId": "prepareCsrf",
         "tags": [
           "공통 · 인증"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n첫 저장 요청 전에 csrftoken 쿠키를 준비한다. 로그인 없이 호출할 수 있으며 요청 본문·경로 변수·쿼리는 없다. 응답 Set-Cookie로 토큰 쿠키를 설정하고 토큰 원문은 JSON 본문에 넣지 않는다. 현재 backend/config/api_common.py에 구현되어 있다.\n\n원본: `docs/api/auth.md`",
+        "description": "첫 저장 요청 전에 csrftoken 쿠키를 준비한다. 로그인 없이 호출할 수 있으며 요청 본문·경로 변수·쿼리는 없다. 응답 Set-Cookie로 토큰 쿠키를 설정하고 토큰 원문은 JSON 본문에 넣지 않는다. 현재 backend/config/api_common.py에 구현되어 있다.\n\n원본: `docs/api/auth.md`",
         "security": [],
         "x-source": "docs/api/auth.md",
         "responses": {
@@ -99,12 +108,12 @@
     },
     "/api/auth/signup/": {
       "post": {
-        "summary": "[구현] 회원가입",
+        "summary": "회원가입",
         "operationId": "signUp",
         "tags": [
           "공통 · 인증"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 확정 API 계약이다. 회원과 필수 동의를 하나의 트랜잭션으로 저장하고 201 응답과 함께 자동 로그인 세션 쿠키를 설정한다. 로그인과 동일하게 CSRF 쿠키를 갱신한다. 동의 시각·원문 해시는 서버에서 관리한다. terms와 privacy 둘 다 필요하며 agreed·비밀번호 확인·나이·성별·급여·금융 조회 동의 등 표에 없는 필드를 보내면 400 invalid다. 이메일 정규화·DB 유일성 제약으로 중복 가입을 막고 Idempotency-Key는 사용하지 않는다. 이미 로그인한 상태의 가입 요청은 fields 없는 400 invalid다. 최종 약관 문구·원문 해시 관리, 기존 null/빈 닉네임 데이터 보완은 별도 구현·운영 조율 대상이다.\n\n원본: `docs/api/auth.md`",
+        "description": "현재 미구현인 확정 API 계약이다. 회원과 필수 동의를 하나의 트랜잭션으로 저장하고 201 응답과 함께 자동 로그인 세션 쿠키를 설정한다. 로그인과 동일하게 CSRF 쿠키를 갱신한다. 동의 시각·원문 해시는 서버에서 관리한다. terms와 privacy 둘 다 필요하며 agreed·비밀번호 확인·나이·성별·급여·금융 조회 동의 등 표에 없는 필드를 보내면 400 invalid다. 이메일 정규화·DB 유일성 제약으로 중복 가입을 막고 Idempotency-Key는 사용하지 않는다. 이미 로그인한 상태의 가입 요청은 fields 없는 400 invalid다. 최종 약관 문구·원문 해시 관리, 기존 null/빈 닉네임 데이터 보완은 별도 구현·운영 조율 대상이다.\n\n원본: `docs/api/auth.md`",
         "security": [],
         "x-source": "docs/api/auth.md",
         "responses": {
@@ -294,12 +303,12 @@
     },
     "/api/auth/login/": {
       "post": {
-        "summary": "[구현] 로그인",
+        "summary": "로그인",
         "operationId": "logIn",
         "tags": [
           "공통 · 인증"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 확정 API 계약이다. Django 세션 쿠키로 로그인하고 세션을 14일 유지한다. accessToken·refreshToken·JWT를 발급하거나 응답하지 않는다. 회원가입 때의 비밀번호 길이·조합 조건을 로그인에 재적용하지 않는다. 자동 로그인 요청 필드는 없고 이메일 기억하기는 화면 기능이다. 실패 횟수 제한은 1차 범위에서 제외한다. 이메일 없음·비밀번호 불일치·정지·탈퇴 계정을 동일한 400 invalid 문구로 처리하며 fields를 생략한다. 실패하면 세션을 생성하지 않는다. 로그인으로 CSRF 토큰이 바뀌면 이후 요청에는 새 쿠키 값을 사용한다. 이미 로그인한 상태에서 재로그인하는 정책은 원문에서 확인 필요로 남아 있다.\n\n원본: `docs/api/auth.md`",
+        "description": "현재 미구현인 확정 API 계약이다. Django 세션 쿠키로 로그인하고 세션을 14일 유지한다. accessToken·refreshToken·JWT를 발급하거나 응답하지 않는다. 회원가입 때의 비밀번호 길이·조합 조건을 로그인에 재적용하지 않는다. 자동 로그인 요청 필드는 없고 이메일 기억하기는 화면 기능이다. 로그인 시도는 횟수 제한이 있으며 넘으면 429다. 이메일 없음·비밀번호 불일치·정지·탈퇴 계정을 동일한 400 invalid 문구로 처리하며 fields를 생략한다. 실패하면 세션을 생성하지 않는다. 로그인으로 CSRF 토큰이 바뀌면 이후 요청에는 새 쿠키 값을 사용한다.\n\n원본: `docs/api/auth.md`",
         "security": [],
         "x-source": "docs/api/auth.md",
         "responses": {
@@ -450,12 +459,12 @@
     },
     "/api/auth/logout/": {
       "post": {
-        "summary": "[구현] 로그아웃",
+        "summary": "로그아웃",
         "operationId": "logOut",
         "tags": [
           "공통 · 인증"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 확정 API 계약이다. 요청 본문·회원 ID·세션 ID 없이 쿠키에 연결된 현재 세션을 종료한다. 로그인은 필수가 아니지만 CSRF는 검증한다. 유효한 CSRF 요청이면 이미 로그아웃된 상태에도 200과 {\"ok\": true}를 반환한다. 다른 기기의 모든 세션을 종료하는 기능은 포함하지 않는다. 성공 후 화면은 회원 정보를 비우고 로그인 화면으로 이동한다.\n\n원본: `docs/api/auth.md`",
+        "description": "현재 미구현인 확정 API 계약이다. 요청 본문·회원 ID·세션 ID 없이 쿠키에 연결된 현재 세션을 종료한다. 로그인은 필수가 아니지만 CSRF는 검증한다. 유효한 CSRF 요청이면 이미 로그아웃된 상태에도 200과 {\"ok\": true}를 반환한다. 다른 기기의 모든 세션을 종료하는 기능은 포함하지 않는다. 성공 후 화면은 회원 정보를 비우고 로그인 화면으로 이동한다.\n\n원본: `docs/api/auth.md`",
         "security": [],
         "x-source": "docs/api/auth.md",
         "responses": {
@@ -524,12 +533,12 @@
     },
     "/api/auth/me/": {
       "get": {
-        "summary": "[구현] 내 계정 확인",
+        "summary": "내 계정 확인",
         "operationId": "getCurrentMember",
         "tags": [
           "공통 · 인증"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 확정 API 계약이다. 현재 세션의 로그인 여부와 기본 회원 정보를 조회한다. 요청 본문·경로 변수·쿼리는 없으며 userId를 입력받지 않는다. 정상 응답의 nickname은 null이나 빈 문자열이 될 수 없다. 기존 null/빈 닉네임 회원의 보완·전환 절차는 별도 조율 대상이다. onboardingCompleted는 첫 예산 승인 이력으로 판단하고 단계 번호는 반환하지 않는다. false면 저장된 입력값을 채운 온보딩 첫 단계로 이동한다. 비로그인·만료 세션에 가짜 회원 또는 200 빈 값을 반환하지 않는다.\n\n원본: `docs/api/auth.md`",
+        "description": "현재 미구현인 확정 API 계약이다. 현재 세션의 로그인 여부와 기본 회원 정보를 조회한다. 요청 본문·경로 변수·쿼리는 없으며 userId를 입력받지 않는다. 정상 응답의 nickname은 null이나 빈 문자열이 될 수 없다. 기존 null/빈 닉네임 회원의 보완·전환 절차는 별도 조율 대상이다. onboardingCompleted는 첫 예산 승인 이력으로 판단하고 단계 번호는 반환하지 않는다. false면 저장된 입력값을 채운 온보딩 첫 단계로 이동한다. 비로그인·만료 세션에 가짜 회원 또는 200 빈 값을 반환하지 않는다.\n\n원본: `docs/api/auth.md`",
         "security": [
           {
             "sessionAuth": []
@@ -598,13 +607,13 @@
         "x-implementation-status": "implemented"
       },
       "delete": {
-        "summary": "[구현] 회원 탈퇴와 전체 데이터 삭제",
+        "summary": "회원 탈퇴와 전체 데이터 삭제",
         "operationId": "withdrawAccount",
         "tags": [
           "공통 · 인증"
         ],
         "x-source": "docs/api/auth.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n앱 로그인 비밀번호와 confirm=true 확인 후 본인 및 소유 데이터·세션·CODEF 등록 인증수단 삭제. 진행 중 작업은 완료 후 재시도. 외부 삭제 실패 시 DB를 삭제하지 않고 재시도할 수 있다.\n\n원본: `docs/api/auth.md`",
+        "description": "앱 로그인 비밀번호와 confirm=true 확인 후 본인 및 소유 데이터·세션·CODEF 등록 인증수단 삭제. 진행 중 작업은 완료 후 재시도. 외부 삭제 실패 시 DB를 삭제하지 않고 재시도할 수 있다.\n\n원본: `docs/api/auth.md`",
         "responses": {
           "200": {
             "description": "처리 성공",
@@ -647,7 +656,7 @@
             }
           },
           "202": {
-            "description": "탈퇴 접수(로그인 차단 · 로그아웃) · 외부 인증 또는 자료 삭제 미완료. 운영자가 재처리 명령을 수동 실행해 이어 간다(자동 스케줄 없음, R21)",
+            "description": "탈퇴 접수(로그인 차단 · 로그아웃) · 외부 인증 또는 자료 삭제 미완료. 운영자가 재처리 명령을 수동 실행해 이어 간다(자동 스케줄 없음)",
             "content": {
               "application/json": {
                 "schema": {
@@ -744,13 +753,13 @@
     },
     "/api/my/": {
       "get": {
-        "summary": "[구현] 마이페이지 실제 요약",
+        "summary": "마이페이지 실제 요약",
         "operationId": "mySummary",
         "tags": [
           "공통 · 인증"
         ],
         "x-source": "docs/api/auth.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n저장된 급여·확정 고정지출·정기 저축·지킬 돈·활성 연결을 집계한다. 미설정은 null, 실제 0건은 0. CODEF를 호출하지 않는다.\n\n원본: `docs/api/auth.md`",
+        "description": "저장된 급여·확정 고정지출·정기 저축·지킬 돈·활성 연결을 집계한다. 미설정은 null, 실제 0건은 0. CODEF를 호출하지 않는다.\n\n원본: `docs/api/auth.md`",
         "responses": {
           "200": {
             "description": "처리 성공",
@@ -778,12 +787,12 @@
     },
     "/api/consent-documents/": {
       "get": {
-        "summary": "[구현] 동의 문서 원문 보기",
+        "summary": "동의 문서 원문 보기",
         "operationId": "listConsentDocuments",
         "tags": [
           "공통 · 인증"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n회원가입·금융 조회에서 지금 동의받는 문서의 종류·범위·버전·원문을 준다. 로그인 없이 호출한다(회원가입 전 필요). 원문은 backend/users/consent_documents.py 한 곳에서 관리하며 동의 기록의 document_hash도 같은 원문으로 만든다. 외부 호출 없음.\n\n원본: `docs/api/auth.md`",
+        "description": "회원가입·금융 조회에서 지금 동의받는 문서의 종류·범위·버전·원문을 준다. 로그인 없이 호출한다(회원가입 전 필요). 원문은 backend/users/consent_documents.py 한 곳에서 관리하며 동의 기록의 document_hash도 같은 원문으로 만든다. 외부 호출 없음.\n\n원본: `docs/api/auth.md`",
         "security": [],
         "x-source": "docs/api/auth.md",
         "responses": {
@@ -847,14 +856,220 @@
         "x-implementation-status": "implemented"
       }
     },
+    "/api/profile/": {
+      "get": {
+        "summary": "내 정보 보기",
+        "operationId": "profileGet",
+        "tags": [
+          "내 정보"
+        ],
+        "x-source": "docs/api/profile.md",
+        "description": "로그인한 본인의 생년월일·성별·거주 형태·자차·사는 지역·소비 우선순위·카테고리 최소 금액. 아직 저장하지 않았으면 값은 null, 목록은 []이며 조회로 행을 만들지 않는다.\n\n원본: `docs/api/profile.md`",
+        "responses": {
+          "200": {
+            "description": "내 정보. 목록은 순위순·카테고리 표시 순서.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                },
+                "examples": {
+                  "saved": {
+                    "value": {
+                      "birthDate": "1999-03-15",
+                      "gender": "female",
+                      "housingType": "alone",
+                      "hasCar": false,
+                      "regionCode": "11620",
+                      "regionName": "서울특별시 관악구",
+                      "priorities": [
+                        {
+                          "category": "FOOD",
+                          "categoryName": "식비",
+                          "rank": 1
+                        },
+                        {
+                          "category": "CULTURE_LEISURE",
+                          "categoryName": "문화·여가",
+                          "rank": 2
+                        },
+                        {
+                          "category": "MEDICAL_HEALTH",
+                          "categoryName": "의료·건강",
+                          "rank": 3
+                        }
+                      ],
+                      "categoryMinimums": [
+                        {
+                          "category": "FOOD",
+                          "categoryName": "식비",
+                          "minAmount": 300000
+                        }
+                      ]
+                    }
+                  },
+                  "empty": {
+                    "value": {
+                      "birthDate": null,
+                      "gender": null,
+                      "housingType": null,
+                      "hasCar": null,
+                      "regionCode": null,
+                      "regionName": null,
+                      "priorities": [],
+                      "categoryMinimums": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      },
+      "put": {
+        "summary": "내 정보 저장",
+        "operationId": "profilePut",
+        "tags": [
+          "내 정보"
+        ],
+        "x-source": "docs/api/profile.md",
+        "description": "PUT은 일곱 항목의 전체 교체다. 누락·null은 400이며, 최소 금액을 설정하지 않으면 categoryMinimums: []를 보낸다.\n\n- 우선순위: 생활비 배분 대상 8개 카테고리 중 3~8개. rank는 1부터 빠짐없이, 순위·카테고리 중복 불가. HOUSING_TELECOM·TRAVEL_LODGING(예산 밖)·ETC·UNCLASSIFIED는 400.\n- 최소 금액: 배분 대상 8개와 ETC 중 원하는 항목만, 항목당 1~9,999,999,999원. 우선순위에 없는 카테고리도 가능. 최소 금액 합계와 생활비 비교는 예산 생성 때 검사한다.\n- regionCode: GET /api/policies/regions/의 시군구 코드만. 시도 코드·없는 코드는 400.\n- 회원 행을 잠그고 프로필·두 목록을 한 트랜잭션으로 저장한다. 같은 PUT 반복은 같은 결과라 Idempotency-Key가 필요 없다. 급여·급여일·쿠션·지킬 돈 설정은 바꾸지 않는다.\n\n원본: `docs/api/profile.md`",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileSaveRequest"
+              },
+              "examples": {
+                "onboarding": {
+                  "value": {
+                    "birthDate": "1999-03-15",
+                    "gender": "female",
+                    "housingType": "alone",
+                    "hasCar": false,
+                    "regionCode": "11620",
+                    "priorities": [
+                      {
+                        "category": "FOOD",
+                        "rank": 1
+                      },
+                      {
+                        "category": "CULTURE_LEISURE",
+                        "rank": 2
+                      },
+                      {
+                        "category": "MEDICAL_HEALTH",
+                        "rank": 3
+                      }
+                    ],
+                    "categoryMinimums": [
+                      {
+                        "category": "FOOD",
+                        "minAmount": 300000
+                      },
+                      {
+                        "category": "ETC",
+                        "minAmount": 10000
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "저장한 내 정보 (GET과 같은 모양). 처음 저장·수정 모두 200.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                },
+                "example": {
+                  "birthDate": "1999-03-15",
+                  "gender": "female",
+                  "housingType": "alone",
+                  "hasCar": false,
+                  "regionCode": "11620",
+                  "regionName": "서울특별시 관악구",
+                  "priorities": [
+                    {
+                      "category": "FOOD",
+                      "categoryName": "식비",
+                      "rank": 1
+                    },
+                    {
+                      "category": "CULTURE_LEISURE",
+                      "categoryName": "문화·여가",
+                      "rank": 2
+                    },
+                    {
+                      "category": "MEDICAL_HEALTH",
+                      "categoryName": "의료·건강",
+                      "rank": 3
+                    }
+                  ],
+                  "categoryMinimums": [
+                    {
+                      "category": "FOOD",
+                      "categoryName": "식비",
+                      "minAmount": 300000
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "누락·타입·값·목록 오류: invalid (fields에 칸별 이유). 잘못된 JSON: parse_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ]
+      }
+    },
     "/api/finance/consents/": {
       "post": {
-        "summary": "[구현] 금융 조회 동의 저장",
+        "summary": "금융 조회 동의 저장",
         "operationId": "saveFinanceConsents",
         "tags": [
           "금융 동의 · 연결"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현이며 원문에 남은 확인 필요 사항을 유지한 API 계약이다. 은행 조회 동의는 필수이고 카드·대출은 선택이다. 동의하지 않은 항목은 보내지 않으며 거절 기록은 저장하지 않는다. agreed·documentHash·grantedAt 등 서버 관리 항목이나 표에 없는 칸을 보내면 400 invalid다. 동의 원문 해시와 시각은 서버가 기록한다. 같은 범위·같은 문서 버전의 유효한 동의가 이미 있으면 새 기록을 만들지 않고 기존 기록을 같은 응답 모양으로 반환한다. Idempotency-Key는 동의 버튼을 누를 때 생성하고 응답 전 재전송에는 같은 키를 쓴다. 동의 철회 API는 1차 범위에 없다. 목적 코드의 확정 여부는 원문 요청 표에 확인 필요로 남아 있어 finance_inquiry를 예시로 보존하며 허용 코드 enum을 추정하지 않는다. 최종 동의 문구는 확인 필요 사항이다. 문서 전송 버전은 결정기록 3-3 L에서 v1로 확정되었다. (11/06 R24) documentVersion은 GET /api/consent-documents/가 준 현재 버전(v2)이며, 해시는 보낸 버전의 서버 보관 원문으로 만든다. 지난 버전 v1(임시 문장 해시)을 새로 보내면 409 document_outdated, 없는 버전은 400 invalid. 과거 v1 기록은 그대로 유효하다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "은행 조회 동의는 필수이고 카드·대출은 선택이다. 동의하지 않은 항목은 보내지 않으며 거절 기록은 저장하지 않는다. agreed·documentHash·grantedAt 등 서버 관리 항목이나 표에 없는 칸을 보내면 400 invalid다. 동의 원문 해시와 시각은 서버가 기록한다. 같은 범위·같은 문서 버전의 유효한 동의가 이미 있으면 새 기록을 만들지 않고 기존 기록을 같은 응답 모양으로 반환한다. Idempotency-Key는 동의 버튼을 누를 때 생성하고 응답 전 재전송에는 같은 키를 쓴다. 동의 철회는 DELETE /api/finance/consents/{scope}/로 한다. documentVersion은 GET /api/consent-documents/가 준 현재 버전(v2)이며, 해시는 보낸 버전의 서버 보관 원문으로 만든다. 지난 버전 v1(임시 문장 해시)을 새로 보내면 409 document_outdated, 없는 버전은 400 invalid. 과거 v1 기록은 그대로 유효하다.\n\n원본: `docs/api/finance-connect.md`",
         "security": [
           {
             "sessionAuth": []
@@ -1017,13 +1232,13 @@
         ]
       },
       "get": {
-        "summary": "[구현] 금융 조회 동의 상태",
+        "summary": "금융 조회 동의 상태",
         "operationId": "getConsentStates",
         "tags": [
           "금융 동의 · 연결"
         ],
         "x-source": "docs/api/finance-connect.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n은행·카드·대출 동의의 실제 상태와 버전·시각. 미동의는 날짜와 버전 null. 외부 호출 없음.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "은행·카드·대출 동의의 실제 상태와 버전·시각. 미동의는 날짜와 버전 null. 외부 호출 없음.\n\n원본: `docs/api/finance-connect.md`",
         "responses": {
           "200": {
             "description": "처리 성공",
@@ -1051,12 +1266,12 @@
     },
     "/api/finance/connect/accounts/": {
       "get": {
-        "summary": "[구현] 계좌 후보 보기",
+        "summary": "계좌 후보 보기",
         "operationId": "listAccountCandidates",
         "tags": [
           "금융 동의 · 연결"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 API 계약이다. 저장된 계좌만 조회하며 CODEF를 새로 호출하지 않는다. 후보는 현재 회원의 해제되지 않은 은행 연결에서 가져온 입출금 계좌이고 예적금은 제외한다. relogin 계좌도 선택할 수 있고 잔액은 마지막 조회 값이다. 계좌 상태는 connection.status를 따른다. 연결 은행 또는 후보가 없으면 200과 빈 items를 반환한다. 금융 조회 실패를 빈 목록·0원으로 바꾸지 않는다. CODEF 실제 응답의 상품명·종류·잔액 제공 여부, 은행명 변환표, 계좌 용도 입력 여부는 원문에 확인 필요로 남아 있다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "현재 미구현인 API 계약이다. 저장된 계좌만 조회하며 CODEF를 새로 호출하지 않는다. 후보는 현재 회원의 해제되지 않은 은행 연결에서 가져온 입출금 계좌이고 예적금은 제외한다. relogin 계좌도 선택할 수 있고 잔액은 마지막 조회 값이다. 계좌 상태는 connection.status를 따른다. 연결 은행 또는 후보가 없으면 200과 빈 items를 반환한다. 금융 조회 실패를 빈 목록·0원으로 바꾸지 않는다. CODEF 실제 응답의 상품명·종류·잔액 제공 여부, 은행명 변환표, 계좌 용도 입력 여부는 원문에 확인 필요로 남아 있다.\n\n원본: `docs/api/finance-connect.md`",
         "security": [
           {
             "sessionAuth": []
@@ -1147,12 +1362,12 @@
         "x-implementation-status": "implemented"
       },
       "put": {
-        "summary": "[구현] 계좌 선택 저장",
+        "summary": "계좌 선택 저장",
         "operationId": "replaceSelectedAccounts",
         "tags": [
           "금융 동의 · 연결"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 API 계약이다. 선택한 계좌 전체 목록으로 기존 선택을 교체한다. 누락된 계좌는 선택 해제되며 적어도 하나는 선택해야 한다. 후보 GET에 나오는 내 입출금 계좌만 허용하고 중복 ID는 거절한다. UUID 형식 오류·없는 계좌·다른 회원 계좌·선택 불가 계좌가 하나라도 있으면 모두 동일한 fields.selectedAccountIds 오류로 400 invalid를 반환하며 어떤 ID가 문제인지 밝히지 않는다. 하나라도 잘못되면 트랜잭션 전체를 저장하지 않고 기존 선택을 유지한다. 이미 같은 선택 상태인 요청은 200이며 Idempotency-Key를 사용하지 않는다. 선택 변경은 홈 잔액·월급 찾기에 바로 반영하지만 승인 전 예산 초안을 만료시키지 않는다. 선택 해제 계좌의 과거 거래를 예산 계산에 넣는 상세 기준은 원문 확인 필요 사항이다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "현재 미구현인 API 계약이다. 선택한 계좌 전체 목록으로 기존 선택을 교체한다. 누락된 계좌는 선택 해제되며 적어도 하나는 선택해야 한다. 후보 GET에 나오는 내 입출금 계좌만 허용하고 중복 ID는 거절한다. UUID 형식 오류·없는 계좌·다른 회원 계좌·선택 불가 계좌가 하나라도 있으면 모두 동일한 fields.selectedAccountIds 오류로 400 invalid를 반환하며 어떤 ID가 문제인지 밝히지 않는다. 하나라도 잘못되면 트랜잭션 전체를 저장하지 않고 기존 선택을 유지한다. 이미 같은 선택 상태인 요청은 200이며 Idempotency-Key를 사용하지 않는다. 선택 변경은 홈 잔액·월급 찾기에 바로 반영하지만 승인 전 예산 초안을 만료시키지 않는다.\n\n원본: `docs/api/finance-connect.md`",
         "security": [
           {
             "sessionAuth": []
@@ -1299,12 +1514,12 @@
     },
     "/api/finance/connections/": {
       "get": {
-        "summary": "[구현] 연결 목록 보기",
+        "summary": "연결 목록 보기",
         "operationId": "listFinanceConnections",
         "tags": [
           "금융 동의 · 연결"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 API 계약이다. 저장된 현재 회원의 연결을 조회하며 CODEF를 호출하지 않는다. connected·relogin만 반환하고 disconnected는 제외한다. 연결이 없으면 200과 빈 items를 반환한다. connectedId·CODEF 키·인증 정보는 반환하지 않는다. accountIds·cardIds는 연결 해제 확인 시 해당 결제 수단으로 나가는 고정지출·저축을 고르는 데 사용한다. relogin 판정에 사용할 CODEF 오류 기준은 확인 필요하다. 기관 신규 인증·재연결·재조회 API와 연결별 상세 API는 이 1차 문서의 범위에 없다. 추후 재연결 시 기존 계좌·카드를 재사용한다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "현재 미구현인 API 계약이다. 저장된 현재 회원의 연결을 조회하며 CODEF를 호출하지 않는다. connected·relogin만 반환하고 disconnected는 제외한다. 연결이 없으면 200과 빈 items를 반환한다. connectedId·CODEF 키·인증 정보는 반환하지 않는다. accountIds·cardIds는 연결 해제 확인 시 해당 결제 수단으로 나가는 고정지출·저축을 고르는 데 사용한다. 새 연결은 POST /api/finance/connections/, 다시 불러오기는 POST /api/finance/sync/로 한다. 재연결하면 기존 계좌·카드를 재사용한다.\n\n원본: `docs/api/finance-connect.md`",
         "security": [
           {
             "sessionAuth": []
@@ -1397,12 +1612,12 @@
       },
       "post": {
         "operationId": "createFinanceConnections",
-        "summary": "[구현] 금융기관 인증 · 새 연결",
+        "summary": "금융기관 인증 · 새 연결",
         "tags": [
           "금융 동의 · 연결"
         ],
         "x-source": "docs/api/finance-connect.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n아이디·비밀번호 로그인 및 SMS 2-way 인증만 지원한다. 같은 기관 재요청은 다시 로그인으로 처리하므로 Idempotency-Key를 쓰지 않는다. 기관별 동의를 먼저 검사한다. 하나라도 연결되거나 문자 인증 대기면 200, 전부 실패하면 400 이유가 하나라도 있을 때 400 invalid, 나머지는 502 provider_unavailable. 여러 기관 전부 실패 시 message는 \"연결하지 못했어요. 기관별 안내를 확인해 주세요.\"이고 fields[\"institutions[i]\"]에 기관별 안내를 넣는다. 한 기관이면 그 기관의 문구·상태를 그대로 보낸다. SMS 토큰은 3분 유효하며 같은 회원·기관에서만 사용한다. 잘못된 인증번호는 200 sms_required와 새 토큰·error로 응답한다. 은행은 연결 직후 4달 전 1일부터 오늘까지 계좌·거래를 불러오고 실패해도 연결은 유지한다. 재연결은 기존 계좌·카드를 재사용한다. connectedId·비밀번호·카드 값은 응답에 포함하거나 로그에 저장하지 않는다. CODEF 원래 오류 코드는 응답에 넣지 않는다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "아이디·비밀번호 로그인 및 SMS 2-way 인증만 지원한다. 같은 기관 재요청은 다시 로그인으로 처리하므로 Idempotency-Key를 쓰지 않는다. 기관별 동의를 먼저 검사한다. 하나라도 연결되거나 문자 인증 대기면 200, 전부 실패하면 400 이유가 하나라도 있을 때 400 invalid, 나머지는 502 provider_unavailable. 여러 기관 전부 실패 시 message는 \"연결하지 못했어요. 기관별 안내를 확인해 주세요.\"이고 fields[\"institutions[i]\"]에 기관별 안내를 넣는다. 한 기관이면 그 기관의 문구·상태를 그대로 보낸다. SMS 토큰은 3분 유효하며 같은 회원·기관에서만 사용한다. 잘못된 인증번호는 200 sms_required와 새 토큰·error로 응답한다. 은행은 연결 직후 4달 전 1일부터 오늘까지 계좌·거래를 불러오고 실패해도 연결은 유지한다. 재연결은 기존 계좌·카드를 재사용한다. connectedId·비밀번호·카드 값은 응답에 포함하거나 로그에 저장하지 않는다. CODEF 원래 오류 코드는 응답에 넣지 않는다.\n\n원본: `docs/api/finance-connect.md`",
         "requestBody": {
           "required": true,
           "content": {
@@ -1689,12 +1904,12 @@
     },
     "/api/finance/connections/{connectionId}/": {
       "delete": {
-        "summary": "[구현] 연결 해제",
+        "summary": "연결 해제",
         "operationId": "disconnectFinanceConnection",
         "tags": [
           "금융 동의 · 연결"
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n현재 미구현인 API 계약이다. 요청 본문 없이 기관 연결 하나를 해제한다. 행을 삭제하지 않고 disconnected_at과 status=disconnected를 기록한다. 연결의 계좌·카드도 응답에서 disconnected 상태가 되며 과거 거래는 남는다. 이미 해제한 본인 연결에도 204를 반환하며 Idempotency-Key는 사용하지 않는다. 없는 연결·타인 연결·주소 UUID 형식 오류는 404다. 해제한 계좌의 isSelected는 유지하고 해제 전 거래도 소비 집계에 포함한다. 이 API는 고정지출·정기 저축을 직접 중지하지 않는다. 화면의 별도 확인 선택은 기본 체크 안 함이며 선택한 항목만 기존 고정지출·저축 DELETE API로 중지한다. 선택하지 않은 항목은 유지하고 결제 수단을 연결 해제됨으로 표시한다. 여러 기관이 공유하는 connectedId의 마지막 기관 해제 처리, 진행 중 sync 결과 처리, 항목 중지와 연결 해제의 순서·부분 실패 정책은 원문 확인 필요 사항이다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "현재 미구현인 API 계약이다. 요청 본문 없이 기관 연결 하나를 해제한다. 행을 삭제하지 않고 disconnected_at과 status=disconnected를 기록한다. 연결의 계좌·카드도 응답에서 disconnected 상태가 되며 과거 거래는 남는다. 이미 해제한 본인 연결에도 204를 반환하며 Idempotency-Key는 사용하지 않는다. 없는 연결·타인 연결·주소 UUID 형식 오류는 404다. 해제한 계좌의 isSelected는 유지하고 해제 전 거래도 소비 집계에 포함한다. 이 API는 고정지출·정기 저축을 직접 중지하지 않는다. 화면의 별도 확인 선택은 기본 체크 안 함이며 선택한 항목만 기존 고정지출·저축 DELETE API로 중지한다. 선택하지 않은 항목은 유지하고 결제 수단을 연결 해제됨으로 표시한다.\n\n원본: `docs/api/finance-connect.md`",
         "security": [
           {
             "sessionAuth": []
@@ -1770,12 +1985,12 @@
     "/api/finance/sync/": {
       "post": {
         "operationId": "syncFinanceConnections",
-        "summary": "[구현] 금융 정보 다시 불러오기",
+        "summary": "금융 정보 다시 불러오기",
         "tags": [
           "금융 동의 · 연결"
         ],
         "x-source": "docs/api/finance-connect.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n본문 없음 또는 {}는 해제되지 않은 연결 전부에서 동의한 범위를 조회한다. Idempotency-Key는 쓰지 않는다. 수동·자동 작업이 진행 중이면 그 작업, 같은 대상이 끝난 지 1분 안이면 마지막 성공 작업을 반환한다. 대상이 다르거나 카드 값을 보내면 새로 조회한다. 10분 넘게 멈춘 작업은 failed/stale로 닫고 새 작업을 만든다. 1차는 요청 안에서 실행을 끝내므로 202 status=succeeded일 수 있다. 거래는 마지막 성공 조회일 7일 전~오늘, 성공 이력이 없으면 4달 전 1일~오늘. 청구서는 빈틈없이 불러온 마지막 날의 달~다음 달(처음이면 지난달부터), 잔액·카드·대출은 현재 상태다. 동의가 없거나 조회 중 철회·해제되면 해당 범위를 건너뛴다. 카드 저장 함수는 아직 없어 cards: skipped/not_supported다. 기관별 실패는 GET /api/tasks/{id}/ result.items[].error에서 확인한다. 로그인 오류·잠김은 relogin_required이고 연결 상태를 relogin으로 바꾼다. HMAC 전환 전 키로 저장된 계좌·대출·카드가 남아 있으면 저장하지 않고 not_ready(동의 철회 후 다시 연결 안내)다. 작업 자체가 끝까지 돌면 모든 기관이 실패해도 succeeded, 서버 오류로 중단될 때만 failed다. 현대카드 인증값은 저장·로그에 남기지 않으며 없으면 해당 기관만 실패한다.\n\n원본: `docs/api/finance-connect.md`",
+        "description": "본문 없음 또는 {}는 해제되지 않은 연결 전부에서 동의한 범위를 조회한다. Idempotency-Key는 쓰지 않는다. 수동·자동 작업이 진행 중이면 그 작업, 같은 대상이 끝난 지 1분 안이면 마지막 성공 작업을 반환한다. 대상이 다르거나 카드 값을 보내면 새로 조회한다. 10분 넘게 멈춘 작업은 failed/stale로 닫고 새 작업을 만든다. 거래는 마지막 성공 조회일 7일 전~오늘, 성공 이력이 없으면 4달 전 1일~오늘. 청구서는 빈틈없이 불러온 마지막 날의 달~다음 달(처음이면 지난달부터), 잔액·카드·대출은 현재 상태다. 동의가 없거나 조회 중 철회·해제되면 해당 범위를 건너뛴다. 기관별 실패는 GET /api/tasks/{id}/ result.items[].error에서 확인한다. 로그인 오류·잠김은 relogin_required이고 연결 상태를 relogin으로 바꾼다. HMAC 전환 전 키로 저장된 계좌·대출·카드가 남아 있으면 저장하지 않고 not_ready(동의 철회 후 다시 연결 안내)다. 작업 자체가 끝까지 돌면 모든 기관이 실패해도 succeeded, 서버 오류로 중단될 때만 failed다. 현대카드 인증값은 저장·로그에 남기지 않으며 없으면 해당 기관만 실패한다.\n\n원본: `docs/api/finance-connect.md`",
         "requestBody": {
           "required": false,
           "content": {
@@ -1921,13 +2136,13 @@
     },
     "/api/finance/consents/{scope}/": {
       "delete": {
-        "summary": "[구현] 동의 철회와 해당 범위 데이터 삭제",
+        "summary": "동의 철회와 해당 범위 데이터 삭제",
         "operationId": "revokeFinanceConsent",
         "tags": [
           "금융 동의 · 연결"
         ],
         "x-source": "docs/api/finance-connect.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n해당 범위 원천 데이터 및 자동 탐지 항목 삭제. 혼합 예산·쿠션·대화·작업 캐시는 초기화. 직접 등록 항목과 다른 범위 원천은 보존. 은행 인증은 계좌·대출 동의가 모두 없어질 때 삭제. 반복 요청은 현재 상태 반환. 접수(동의 철회 · 연결 해제)를 먼저 커밋한 뒤 외부 인증 삭제 → 로컬 정리를 이어 하며, 끝나지 않으면 202와 deletionStatus로 안내하고 같은 요청으로 재시도한다(R21).\n\n원본: `docs/api/finance-connect.md`",
+        "description": "해당 범위 원천 데이터 및 자동 탐지 항목 삭제. 혼합 예산·쿠션·대화·작업 캐시는 초기화. 직접 등록 항목과 다른 범위 원천은 보존. 은행 인증은 계좌·대출 동의가 모두 없어질 때 삭제. 반복 요청은 현재 상태 반환. 접수(동의 철회 · 연결 해제)를 먼저 커밋한 뒤 외부 인증 삭제 → 로컬 정리를 이어 하며, 끝나지 않으면 202와 deletionStatus로 안내하고 같은 요청으로 재시도한다.\n\n원본: `docs/api/finance-connect.md`",
         "responses": {
           "200": {
             "description": "처리 성공",
@@ -2035,12 +2250,12 @@
     },
     "/api/finance/connect/cards/": {
       "get": {
-        "summary": "[구현] 카드 후보 보기",
+        "summary": "카드 후보 보기",
         "tags": [
           "카드"
         ],
         "operationId": "listCardCandidates",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n저장된 본인 카드 후보만 읽고 CODEF를 호출하지 않습니다. disconnected 연결의 카드는 제외하고 connected/relogin만 반환합니다. relogin 상태에서도 저장된 마지막 자료와 원래 fetchedAt을 유지합니다. 연결 상태는 connection.status이며 기관의 cardStatus와 구분합니다.\n\n정상 확인된 후보 0건만 items: []입니다. 미조회·인증 실패·조회 실패를 빈 목록으로 바꾸지 않습니다. 카드 이름이 없으면 “{카드사} 카드”, 카드사도 없으면 “카드”; 끝 4자리가 없으면 번호 부분 전체를 생략합니다. 금융 조회 동의가 없으면 403 consent_required(fields 없음)입니다. 409 relogin_required·502 provider_unavailable은 외부 호출을 하는 연결/재조회 API의 오류이며 이 GET에는 적용하지 않습니다.\n\n구현 전 확인: 기관·연결별 쿼리 필터, 기관 원천 상태/종류 정규화·휴면/해지 카드 제외, 연결 FK가 없는 카드 노출, 재인증 상태에서 최초 선택 가능 범위, 기관별 정상 0건과 미조회 구분. 아직 확정되지 않은 쿼리 필터는 이 명세에 추가하지 않았습니다.\n\n원본: `docs/api/cards.md`",
+        "description": "저장된 본인 카드 후보만 읽고 CODEF를 호출하지 않습니다. disconnected 연결의 카드는 제외하고 connected/relogin만 반환합니다. relogin 상태에서도 저장된 마지막 자료와 원래 fetchedAt을 유지합니다. 연결 상태는 connection.status이며 기관의 cardStatus와 구분합니다.\n\n정상 확인된 후보 0건만 items: []입니다. 미조회·인증 실패·조회 실패를 빈 목록으로 바꾸지 않습니다. 카드 이름이 없으면 “{카드사} 카드”, 카드사도 없으면 “카드”; 끝 4자리가 없으면 번호 부분 전체를 생략합니다. 금융 조회 동의가 없으면 403 consent_required(fields 없음)입니다. 409 relogin_required·502 provider_unavailable은 외부 호출을 하는 연결/재조회 API의 오류이며 이 GET에는 적용하지 않습니다.\n\n구현 전 확인: 기관·연결별 쿼리 필터, 기관 원천 상태/종류 정규화·휴면/해지 카드 제외, 연결 FK가 없는 카드 노출, 재인증 상태에서 최초 선택 가능 범위, 기관별 정상 0건과 미조회 구분. 아직 확정되지 않은 쿼리 필터는 이 명세에 추가하지 않았습니다.\n\n원본: `docs/api/cards.md`",
         "x-source": "docs/api/cards.md",
         "responses": {
           "200": {
@@ -2153,12 +2368,12 @@
         "x-implementation-status": "implemented"
       },
       "put": {
-        "summary": "[구현] 카드 선택 저장",
+        "summary": "카드 선택 저장",
         "tags": [
           "카드"
         ],
         "operationId": "replaceCardSelection",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nselectedCardIds는 본인의 전체 카드 선택을 대체합니다. 특정 카드사/연결만 바꾸지 않습니다. 필드 생략은 오류이고 []는 전체 선택 해제입니다. 목록에 빠진 기존 선택 카드는 해제하지만 금융기관 연결·과거 거래·기존 고정지출의 결제 수단은 유지합니다. 같은 선택을 재전송해도 성공하며 중복 기록이나 차감은 만들지 않습니다. Idempotency-Key는 쓰지 않습니다.\n\nID 형식 오류·없는 카드·타인 소유·선택 불가 카드를 동일한 400 invalid(fields.selectedCardIds)로 처리하며 하나라도 잘못되면 전체 미저장입니다. 허용 외 필드는 400입니다. 실패/미조회 때문에 기존 선택을 빈 배열로 덮어쓰지 않습니다. 카드 선택만으로 예산·고정비·기존 거래를 다시 계산하지 않습니다.\n\n응답은 후보 GET과 같은 items이며 변경된 isSelected를 반영합니다. [] 저장 후에도 후보가 있으면 isSelected:false인 후보 목록을 반환합니다. 선택 저장 시각으로 fetchedAt을 바꾸지 않습니다.\n\n미정: 중복 ID·최대 선택 수·동시 저장 세부 정책, 휴면/해지 카드 및 relogin 상태에서 최초 선택 허용 범위. 미정인 제한은 스키마에 추가하지 않았습니다.\n\n원본: `docs/api/cards.md`",
+        "description": "selectedCardIds는 본인의 전체 카드 선택을 대체합니다. 특정 카드사/연결만 바꾸지 않습니다. 필드 생략은 오류이고 []는 전체 선택 해제입니다. 목록에 빠진 기존 선택 카드는 해제하지만 금융기관 연결·과거 거래·기존 고정지출의 결제 수단은 유지합니다. 같은 선택을 재전송해도 성공하며 중복 기록이나 차감은 만들지 않습니다. Idempotency-Key는 쓰지 않습니다.\n\nID 형식 오류·없는 카드·타인 소유·선택 불가 카드를 동일한 400 invalid(fields.selectedCardIds)로 처리하며 하나라도 잘못되면 전체 미저장입니다. 허용 외 필드는 400입니다. 실패/미조회 때문에 기존 선택을 빈 배열로 덮어쓰지 않습니다. 카드 선택만으로 예산·고정비·기존 거래를 다시 계산하지 않습니다.\n\n응답은 후보 GET과 같은 items이며 변경된 isSelected를 반영합니다. [] 저장 후에도 후보가 있으면 isSelected:false인 후보 목록을 반환합니다. 선택 저장 시각으로 fetchedAt을 바꾸지 않습니다.\n\n원본: `docs/api/cards.md`",
         "x-source": "docs/api/cards.md",
         "responses": {
           "200": {
@@ -2317,12 +2532,12 @@
     },
     "/api/finance/card-bills/{id}/": {
       "get": {
-        "summary": "[구현] 카드 청구서 보기",
+        "summary": "카드 청구서 보기",
         "tags": [
           "카드"
         ],
         "operationId": "retrieveCardBill",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n홈 mustPay[].type=card_bill인 항목의 sourceId(청구서 ID)로 조회합니다. 카드 ID가 아닙니다. 저장된 본인 청구서만 읽고 CODEF를 호출하지 않습니다. 조회 동의가 없으면 403 consent_required입니다. 청구서가 없으면 404이며 0원짜리 청구서를 만들지 않습니다.\n\n금액은 원 단위 정수, billingMonth는 YYYY-MM입니다. totalAmount는 청구서 총액이며 급여주기 소비액·미납 잔액·선차감액으로 대신 쓰지 않습니다. 모르는 값은 null, 확인된 0원만 0입니다. scopeType·confirmationStatus·itemsState의 원천 값이 없으면 null이며 unknown/unavailable을 임의로 채우지 않습니다. card:null은 포함된 모든 카드가 없다는 뜻이 아니고, cards:null은 포함 카드 범위를 확인하지 못한 경우입니다. items:null은 미확보, []는 정상 확인된 0건입니다. partial이면 확보한 항목만 제공하며 항목 합계를 총액으로 대체하지 않습니다. 할부 원 구매액을 이번 회차 청구액에 다시 더하지 않습니다. fetchedAt은 해당 자료의 마지막 정상 조회 시각입니다.\n\n첫 청구서 선차감=max(0, 첫 청구서 총액−이번 급여주기 시작 뒤 그 카드로 쓴 돈). 이후 납부는 이미 반영한 카드 소비와 연결하고 다시 차감하지 않습니다. 카드 고정지출은 별도 납부 예정을 만들지 않습니다. 출금일이 있을 때만 납부 예정을 생성합니다. 홈 mustPay 금액은 총청구액−이미 낸 금액이며 선차감액과 다릅니다. confirmationStatus가 confirmed일 때만 홈 isEstimated=false입니다. 확정 청구/출금일 경과는 납부 완료를 뜻하지 않습니다.\n\n확정 후 원천/구현 검증 대기: 카드사 코드→이름 표, 상세·할부·취소 매핑, 통합 청구 범위, 부분 납부·매칭 키, 일부 누락·합계 불일치·조정액 음수 처리. 차이를 임의 조정 항목으로 맞추지 않습니다. 리볼빙·현금서비스·카드론·연체료의 별도 위험 요약과 급여주기 소비액은 이번 응답에 추가하지 않습니다.\n\n원본: `docs/api/cards.md`",
+        "description": "홈 mustPay[].type=card_bill인 항목의 sourceId(청구서 ID)로 조회합니다. 카드 ID가 아닙니다. 저장된 본인 청구서만 읽고 CODEF를 호출하지 않습니다. 조회 동의가 없으면 403 consent_required입니다. 청구서가 없으면 404이며 0원짜리 청구서를 만들지 않습니다.\n\n금액은 원 단위 정수, billingMonth는 YYYY-MM입니다. totalAmount는 청구서 총액이며 급여주기 소비액·미납 잔액·선차감액으로 대신 쓰지 않습니다. 모르는 값은 null, 확인된 0원만 0입니다. scopeType·confirmationStatus·itemsState의 원천 값이 없으면 null이며 unknown/unavailable을 임의로 채우지 않습니다. card:null은 포함된 모든 카드가 없다는 뜻이 아니고, cards:null은 포함 카드 범위를 확인하지 못한 경우입니다. items:null은 미확보, []는 정상 확인된 0건입니다. partial이면 확보한 항목만 제공하며 항목 합계를 총액으로 대체하지 않습니다. 할부 원 구매액을 이번 회차 청구액에 다시 더하지 않습니다. fetchedAt은 해당 자료의 마지막 정상 조회 시각입니다.\n\n첫 청구서 선차감=max(0, 첫 청구서 총액−이번 급여주기 시작 뒤 그 카드로 쓴 돈). 이후 납부는 이미 반영한 카드 소비와 연결하고 다시 차감하지 않습니다. 카드 고정지출은 별도 납부 예정을 만들지 않습니다. 출금일이 있을 때만 납부 예정을 생성합니다. 홈 mustPay 금액은 총청구액−이미 낸 금액이며 선차감액과 다릅니다. confirmationStatus가 confirmed일 때만 홈 isEstimated=false입니다. 확정 청구/출금일 경과는 납부 완료를 뜻하지 않습니다.\n\n확정 후 원천/구현 검증 대기: 카드사 코드→이름 표, 상세·할부·취소 매핑, 통합 청구 범위, 부분 납부·매칭 키, 일부 누락·합계 불일치·조정액 음수 처리. 차이를 임의 조정 항목으로 맞추지 않습니다. 리볼빙·현금서비스·카드론·연체료의 별도 위험 요약과 급여주기 소비액은 이번 응답에 추가하지 않습니다.\n\n원본: `docs/api/cards.md`",
         "x-source": "docs/api/cards.md",
         "responses": {
           "200": {
@@ -2556,10 +2771,10 @@
         "tags": [
           "카드"
         ],
-        "summary": "[구현] 결제 카드 확인이 필요한 승인 조회",
+        "summary": "결제 카드 확인이 필요한 승인 조회",
         "operationId": "listCardReviews",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n저장된 본인 미확인 승인만 조회한다. 카드명 일치는 참고 정보이며 자동 연결하지 않는다. canResolve=false면 최신 금액 정보가 불확실하므로 재조회해야 한다. 원문 번호·승인 식별 키는 반환하지 않는다.\n\n원본: `docs/api/cards.md`",
+        "description": "저장된 본인 미확인 승인만 조회한다. 카드명 일치는 참고 정보이며 자동 연결하지 않는다. canResolve=false면 최신 금액 정보가 불확실하므로 재조회해야 한다. 원문 번호·승인 식별 키는 반환하지 않는다.\n\n원본: `docs/api/cards.md`",
         "responses": {
           "200": {
             "description": "미확인 승인 목록",
@@ -2610,10 +2825,10 @@
         "tags": [
           "카드"
         ],
-        "summary": "[구현] 승인 한 건의 결제 카드 확인",
+        "summary": "승인 한 건의 결제 카드 확인",
         "operationId": "resolveCardReview",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n같은 회원·카드사의 연결 중인 카드만 허용. 동일 카드 재전송은 동일 거래를 반환하며 다른 카드로 재확인은 409. 조회의 모든 미확인 거래가 해소되고 금액 오류가 없을 때만 실제 조회 범위의 완료 기록을 생성한다. 승인된 예산은 자동 변경하지 않는다.\n\n원본: `docs/api/cards.md`",
+        "description": "같은 회원·카드사의 연결 중인 카드만 허용. 동일 카드 재전송은 동일 거래를 반환하며 다른 카드로 재확인은 409. 조회의 모든 미확인 거래가 해소되고 금액 오류가 없을 때만 실제 조회 범위의 완료 기록을 생성한다. 승인된 예산은 자동 변경하지 않는다.\n\n원본: `docs/api/cards.md`",
         "parameters": [
           {
             "name": "id",
@@ -2725,13 +2940,13 @@
     },
     "/api/finance/card-bills/{id}/payments/": {
       "get": {
-        "summary": "[구현] 카드 청구서 납부 거래 보기",
+        "summary": "카드 청구서 납부 거래 보기",
         "tags": [
           "카드"
         ],
         "operationId": "getCardBillPayments",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n청구 총액 · 확인된 납부액 · 남은 납부액 · 상태, 연결한 출금, 고를 수 있는 내 계좌 출금 후보를 줍니다. 기본 기간은 결제일 35일 전 ~ 7일 뒤(오늘까지, 선결제 · 분할 납부), from · to 로 최대 92일. 후보에서 빼는 거래는 대출 납부 확인과 같습니다(다른 회원 · 취소 · 내 계좌 이체 · 저축 · 입금 · 고정지출/정기 저축 근거 · 같은 구매로 묶인 출금 · 다른 납부에 이미 연결된 출금). 다른 카드사 적요도 빼지 않고 뒤로 보냅니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 납부 예정 → 거래 순으로 잠급니다.\n\n원본: `docs/api/cards.md`",
+        "description": "청구 총액 · 확인된 납부액 · 남은 납부액 · 상태, 연결한 출금, 고를 수 있는 내 계좌 출금 후보를 줍니다. 기본 기간은 결제일 35일 전 ~ 7일 뒤(오늘까지, 선결제 · 분할 납부), from · to 로 최대 92일. 후보에서 빼는 거래는 대출 납부 확인과 같습니다(다른 회원 · 취소 · 내 계좌 이체 · 저축 · 입금 · 고정지출/정기 저축 근거 · 같은 구매로 묶인 출금 · 다른 납부에 이미 연결된 출금). 다른 카드사 적요도 빼지 않고 뒤로 보냅니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 납부 예정 → 거래 순으로 잠급니다.\n\n원본: `docs/api/cards.md`",
         "parameters": [
           {
             "name": "id",
@@ -2967,13 +3182,13 @@
         "x-implementation-status": "implemented"
       },
       "post": {
-        "summary": "[구현] 카드 청구서 납부 거래 연결",
+        "summary": "카드 청구서 납부 거래 연결",
         "tags": [
           "카드"
         ],
         "operationId": "linkCardBillPayments",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n고른 출금들을 이 청구서 납부로 연결합니다(분할 납부는 여러 건 한 번에, 일부 납부 뒤 추가 연결 가능). 청구 총액은 바꾸지 않고, 남은 납부액 = max(0, 청구액 − 확인된 납부액)입니다. 청구액보다 많아도 납부 기록을 자르지 않습니다. 연결한 거래는 card_payment(사용자 확인)가 되어 소비 합계에서 빠지고, 소비 · 사용자 확정 분류를 바꿀 때는 confirmReclassify 가 필요합니다(없으면 400, 아무것도 바꾸지 않음). 이미 이 청구서에 연결된 거래는 그대로 성공. 다른 납부에 연결된 거래는 409(옮기지 않음). 하나라도 고를 수 없으면 전부 저장하지 않습니다. 같은 거래를 두 청구서에 동시에 연결하면 한쪽만 성공합니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 납부 예정 → 거래 순으로 잠급니다.\n\n원본: `docs/api/cards.md`",
+        "description": "고른 출금들을 이 청구서 납부로 연결합니다(분할 납부는 여러 건 한 번에, 일부 납부 뒤 추가 연결 가능). 청구 총액은 바꾸지 않고, 남은 납부액 = max(0, 청구액 − 확인된 납부액)입니다. 청구액보다 많아도 납부 기록을 자르지 않습니다. 연결한 거래는 card_payment(사용자 확인)가 되어 소비 합계에서 빠지고, 소비 · 사용자 확정 분류를 바꿀 때는 confirmReclassify 가 필요합니다(없으면 400, 아무것도 바꾸지 않음). 이미 이 청구서에 연결된 거래는 그대로 성공. 다른 납부에 연결된 거래는 409(옮기지 않음). 하나라도 고를 수 없으면 전부 저장하지 않습니다. 같은 거래를 두 청구서에 동시에 연결하면 한쪽만 성공합니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 납부 예정 → 거래 순으로 잠급니다.\n\n원본: `docs/api/cards.md`",
         "parameters": [
           {
             "name": "id",
@@ -3268,13 +3483,13 @@
     },
     "/api/finance/card-bills/{id}/payments/{transactionId}/": {
       "delete": {
-        "summary": "[구현] 카드 청구서 납부 거래 연결 취소",
+        "summary": "카드 청구서 납부 거래 연결 취소",
         "tags": [
           "카드"
         ],
         "operationId": "releaseCardBillPayment",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n연결을 풀고 남은 금액 · 상태를 다시 계산합니다. 이 연결이 바꾼 분류는 그 뒤 바뀌지 않았을 때만 원래 값으로 되돌리고(restored, 예: 카드값 후보 이체 → 이체), 아니면 그대로 둡니다(kept). 이 청구서에는 그 출금이 자동으로 다시 붙지 않습니다(사용자가 다시 연결하면 해제). 정정 = 취소 뒤 다른 청구서에 연결. 이미 풀린 연결의 재전송은 200 + released: null. 본문은 받지 않습니다(보내면 400). 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 납부 예정 → 거래 순으로 잠급니다.\n\n원본: `docs/api/cards.md`",
+        "description": "연결을 풀고 남은 금액 · 상태를 다시 계산합니다. 이 연결이 바꾼 분류는 그 뒤 바뀌지 않았을 때만 원래 값으로 되돌리고(restored, 예: 카드값 후보 이체 → 이체), 아니면 그대로 둡니다(kept). 이 청구서에는 그 출금이 자동으로 다시 붙지 않습니다(사용자가 다시 연결하면 해제). 정정 = 취소 뒤 다른 청구서에 연결. 이미 풀린 연결의 재전송은 200 + released: null. 본문은 받지 않습니다(보내면 400). 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 납부 예정 → 거래 순으로 잠급니다.\n\n원본: `docs/api/cards.md`",
         "parameters": [
           {
             "name": "id",
@@ -3457,13 +3672,13 @@
     },
     "/api/finance/card-bills/{id}/payment-check/": {
       "put": {
-        "summary": "[구현] 카드 청구서 납부 확인 저장",
+        "summary": "카드 청구서 납부 확인 저장",
         "tags": [
           "카드"
         ],
         "operationId": "putCardBillCheck",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n거래를 고르지 않고 '이 청구액 중 앞으로 얼마를 더 내야 하나'를 답합니다(사용자 확인). 가짜 출금 · 납부 기록을 만들지 않고 청구 총액도 바꾸지 않습니다. 답 · 그때 청구액 · 시각을 청구서에 남기며 재조회로 지워지지 않습니다. 청구액이 바뀌거나 출금 기록과 맞지 않으면 status: recheck 로 다시 묻습니다. 같은 답을 다시 보내면 그대로 성공. 승인된 예산은 바꾸지 않습니다. 저장된 자료만 사용하며 CODEF를 호출하지 않습니다.\n\n원본: `docs/api/cards.md`",
+        "description": "거래를 고르지 않고 '이 청구액 중 앞으로 얼마를 더 내야 하나'를 답합니다(사용자 확인). 가짜 출금 · 납부 기록을 만들지 않고 청구 총액도 바꾸지 않습니다. 답 · 그때 청구액 · 시각을 청구서에 남기며 재조회로 지워지지 않습니다. 청구액이 바뀌거나 출금 기록과 맞지 않으면 status: recheck 로 다시 묻습니다. 같은 답을 다시 보내면 그대로 성공. 승인된 예산은 바꾸지 않습니다. 저장된 자료만 사용하며 CODEF를 호출하지 않습니다.\n\n원본: `docs/api/cards.md`",
         "parameters": [
           {
             "name": "id",
@@ -3676,13 +3891,13 @@
         "x-implementation-status": "implemented"
       },
       "delete": {
-        "summary": "[구현] 카드 청구서 납부 확인 취소",
+        "summary": "카드 청구서 납부 확인 취소",
         "tags": [
           "카드"
         ],
         "operationId": "deleteCardBillCheck",
         "x-source": "docs/api/cards.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n사용자 확인만 지웁니다(출금 근거는 그대로). 없으면 그대로 성공. 본문은 받지 않습니다.\n\n원본: `docs/api/cards.md`",
+        "description": "사용자 확인만 지웁니다(출금 근거는 그대로). 없으면 그대로 성공. 본문은 받지 않습니다.\n\n원본: `docs/api/cards.md`",
         "parameters": [
           {
             "name": "id",
@@ -3847,12 +4062,12 @@
     },
     "/api/finance/loans/": {
       "get": {
-        "summary": "[구현] 대출 정보 보기",
+        "summary": "대출 정보 보기",
         "tags": [
           "대출"
         ],
         "operationId": "listLoans",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n저장된 본인의 상환 중(repaying) 대출만 읽습니다. ?status=repaid로 상환 종료한 직접 등록 대출을 읽을 수 있습니다(R19). CODEF를 호출하지 않습니다. 유효한 대출 조회 동의가 없으면 직접 등록(origin=manual) 대출만 반환하고 hasInquiryConsent=false를 제공합니다. 동의가 있으면 기관 조회 대출도 포함하며 hasInquiryConsent=true입니다. relogin 상태에서도 마지막 저장 자료와 fetchedAt을 유지합니다. 미조회/조회 실패를 items: []로 바꾸지 않습니다.\n\n모르는 값은 null이고 확인된 0만 0입니다. 기관 원본 reported*와 직접 등록 manual*은 구분하며 잔액 우선순위를 임의로 정하지 않습니다. repaymentMethod의 unknown은 사용자가 “잘 모르겠어요”를 선택한 값, null은 미입력입니다. paymentHistory는 저장된 실제 납부 최근 3건(날짜 최신순)이며 없거나 미확보면 null입니다. 대출 실행 거래는 납부로 세지 않습니다. estimatedMonthlyPayment는 지난 납부 기반 추정이며 산출 불가 시 null; 사용자 저장 monthlyPayment를 덮어쓰지 않습니다. overdue:null은 확인 불가이고 repaid와 다른 뜻입니다.\n\nfieldStates는 manualBalance·manualRate·repaymentMethod·monthlyPayment·paymentDay의 출처/사용자 확인 정보만 구성하며 DB JSON 전체를 노출하지 않습니다. 기관 조회 대출의 일부를 보완해도 origin:provider를 유지합니다. 추정값을 그대로 확인하면 source:estimated를 유지하고 confirmationStatus만 confirmed로, 직접 바꾸면 source:manual로 구분합니다. confirmedAt은 confirmed일 때만 제공하며 기관 조회 시각이나 이전 값의 확인 시각을 재사용하지 않습니다. 확인 근거가 없는 기존 수동 값은 source:manual을 유지하되 확인 상태 unknown으로 표시합니다.\n\n저장한 월 상환액과 납부일이 모두 있을 때만 납부 예정을 만듭니다. 해당 월에 없는 납부일은 말일이고 주말·공휴일 보정은 하지 않습니다. 추정값만으로 납부액을 채우지 않습니다. 홈 mustPay의 type=loan, sourceId=loanId, 금액은 월 상환액−이미 낸 금액입니다. 납부 한 번으로 대출 전체를 repaid로 바꾸지 않고 고정지출 후보를 중복 생성하지 않습니다. GET 자체는 납부 생성·예산 승인·출금 매칭을 실행하지 않습니다.\n\n실제 은행별 원천 제공 여부·이율 단위/정밀도·납부일 의미·연체 코드, 추정 계산의 월별 묶음/기간/부분 수집/원 미만 처리, 기관 재조회와 보완값 충돌 및 DB 메타데이터 저장 방식은 구현 검증 대상입니다. CODEF 샌드박스 성공은 서비스 API 구현 완료나 실제 납부 이력 검증을 뜻하지 않습니다.\n\n원본: `docs/api/loans.md`",
+        "description": "저장된 본인의 상환 중(repaying) 대출만 읽습니다. ?status=repaid로 상환 종료한 직접 등록 대출을 읽을 수 있습니다. CODEF를 호출하지 않습니다. 유효한 대출 조회 동의가 없으면 직접 등록(origin=manual) 대출만 반환하고 hasInquiryConsent=false를 제공합니다. 동의가 있으면 기관 조회 대출도 포함하며 hasInquiryConsent=true입니다. relogin 상태에서도 마지막 저장 자료와 fetchedAt을 유지합니다. 미조회/조회 실패를 items: []로 바꾸지 않습니다.\n\n모르는 값은 null이고 확인된 0만 0입니다. 기관 원본 reported*와 직접 등록 manual*은 구분하며 잔액 우선순위를 임의로 정하지 않습니다. repaymentMethod의 unknown은 사용자가 “잘 모르겠어요”를 선택한 값, null은 미입력입니다. paymentHistory는 저장된 실제 납부 최근 3건(날짜 최신순)이며 없거나 미확보면 null입니다. 대출 실행 거래는 납부로 세지 않습니다. estimatedMonthlyPayment는 지난 납부 기반 추정이며 산출 불가 시 null; 사용자 저장 monthlyPayment를 덮어쓰지 않습니다. overdue:null은 확인 불가이고 repaid와 다른 뜻입니다.\n\nfieldStates는 manualBalance·manualRate·repaymentMethod·monthlyPayment·paymentDay의 출처/사용자 확인 정보만 구성하며 DB JSON 전체를 노출하지 않습니다. 기관 조회 대출의 일부를 보완해도 origin:provider를 유지합니다. 추정값을 그대로 확인하면 source:estimated를 유지하고 confirmationStatus만 confirmed로, 직접 바꾸면 source:manual로 구분합니다. confirmedAt은 confirmed일 때만 제공하며 기관 조회 시각이나 이전 값의 확인 시각을 재사용하지 않습니다. 확인 근거가 없는 기존 수동 값은 source:manual을 유지하되 확인 상태 unknown으로 표시합니다.\n\n저장한 월 상환액과 납부일이 모두 있을 때만 납부 예정을 만듭니다. 해당 월에 없는 납부일은 말일이고 주말·공휴일 보정은 하지 않습니다. 추정값만으로 납부액을 채우지 않습니다. 홈 mustPay의 type=loan, sourceId=loanId, 금액은 월 상환액−이미 낸 금액입니다. 납부 한 번으로 대출 전체를 repaid로 바꾸지 않고 고정지출 후보를 중복 생성하지 않습니다. GET 자체는 납부 생성·예산 승인·출금 매칭을 실행하지 않습니다.\n\n실제 은행별 원천 제공 여부·이율 단위/정밀도·납부일 의미·연체 코드, 추정 계산의 월별 묶음/기간/부분 수집/원 미만 처리, 기관 재조회와 보완값 충돌 및 DB 메타데이터 저장 방식은 구현 검증 대상입니다. CODEF 샌드박스 성공은 서비스 API 구현 완료나 실제 납부 이력 검증을 뜻하지 않습니다.\n\n원본: `docs/api/loans.md`",
         "x-source": "docs/api/loans.md",
         "responses": {
           "200": {
@@ -4022,12 +4237,12 @@
         "x-implementation-status": "implemented"
       },
       "post": {
-        "summary": "[구현] 대출 직접 등록",
+        "summary": "대출 직접 등록",
         "tags": [
           "대출"
         ],
         "operationId": "createManualLoan",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n조회되지 않는 학자금대출 등을 본인 대출로 직접 등록합니다. 서버가 UUID·소유 회원·origin:manual·status:repaying을 정하며 이 칸을 요청으로 보내면 400입니다. CODEF 호출이나 기관 연결을 생성하지 않습니다. 기관 원본·납부 이력·연체 정보는 null이며 수동 입력값으로 채우지 않습니다.\n\n등록 팝업을 열 때 Idempotency-Key를 만들고 처리 중 버튼을 잠급니다. 같은 회원·키·내용은 처음 201 응답을 재사용하며 대출/납부 예정을 중복 생성하지 않습니다. 같은 키의 다른 내용은 409 idempotency_conflict입니다. 실패한 4xx/5xx는 기록하지 않으므로 수정 후 같은 키로 재시도할 수 있고 성공 후 키를 버립니다.\n\n월 상환액과 납부일이 모두 있으면 납부 예정을 만듭니다. 직접 등록 후에도 1차 PATCH는 상환액·납부일·상환 방식 세 칸만 허용하며 잔액·금리 수정은 지원하지 않습니다. 납부일은 없는 날이면 말일, 주말·공휴일 보정은 없습니다. 실제 원천 검증/메타데이터 저장 방식/금리 정밀도/기존 납부 예정의 변경 처리 등은 원문 확인 목록을 따릅니다.\n\n원본: `docs/api/loans.md`",
+        "description": "조회되지 않는 학자금대출 등을 본인 대출로 직접 등록합니다. 서버가 UUID·소유 회원·origin:manual·status:repaying을 정하며 이 칸을 요청으로 보내면 400입니다. CODEF 호출이나 기관 연결을 생성하지 않습니다. 기관 원본·납부 이력·연체 정보는 null이며 수동 입력값으로 채우지 않습니다.\n\n등록 팝업을 열 때 Idempotency-Key를 만들고 처리 중 버튼을 잠급니다. 같은 회원·키·내용은 처음 201 응답을 재사용하며 대출/납부 예정을 중복 생성하지 않습니다. 같은 키의 다른 내용은 409 idempotency_conflict입니다. 실패한 4xx/5xx는 기록하지 않으므로 수정 후 같은 키로 재시도할 수 있고 성공 후 키를 버립니다.\n\n월 상환액과 납부일이 모두 있으면 납부 예정을 만듭니다. 직접 등록 대출은 PATCH로 등록 값(잔액·금리·만기일 등)을 정정할 수 있습니다. 납부일은 없는 날이면 말일, 주말·공휴일 보정은 없습니다.\n\n원본: `docs/api/loans.md`",
         "x-source": "docs/api/loans.md",
         "responses": {
           "201": {
@@ -4260,12 +4475,12 @@
     },
     "/api/finance/loans/{id}/": {
       "patch": {
-        "summary": "[구현] 대출 정보 보완",
+        "summary": "대출 정보 보완",
         "tags": [
           "대출"
         ],
         "operationId": "updateLoanRepayment",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n본인의 상환 중(repaying) 기관 조회/직접 등록 대출에서 monthlyPayment·paymentDay·repaymentMethod를 수정하고, 직접 등록 대출은 등록 때 입력한 lenderName·productName·manualBalance·manualRate·maturityDate도 정정합니다(R19). 정정은 지난 납부액·연결 거래·회차 ID를 바꾸지 않고 가짜 납부를 만들지 않으며, manualBalance 0원도 전체 완납으로 바꾸지 않습니다. 생략은 유지하고 null은 해당 값을 비웁니다. 빈 문자열·범위 밖·허용 외 필드는 400 invalid이며 전체 미저장입니다. 기관 원본·status·origin·소유자·연결 ID·fieldStates는 수정할 수 없습니다. 상환 완료(repaid) 대출은 없는/타인 대출과 같은 404입니다.\n\n같은 값을 재전송해도 같은 결과이며 Idempotency-Key를 쓰지 않습니다. 월 상환액과 납부일이 모두 있으면 이번 주기 납부 예정을 중복 없이 생성하고 둘 중 하나가 없으면 새 납부 예정을 만들지 않습니다. 승인된 예산을 사용자 승인 없이 바꾸지 않으며 보완 저장은 대출 전체 상환 완료 처리가 아닙니다.\n\n응답은 목록으로 감싸지 않은 대출 한 건입니다. 기관 조회 대출의 origin:provider는 유지하며 입력 확인 정보는 서버가 구성합니다. 이미 생성된 납부 예정의 금액/일자 변경·null 전환·부분 납부 처리, 여러 대출 순차 저장의 일부 실패 화면 안내는 구현 조율 대상입니다.\n\n직접 등록 대출은 조회 동의 없이 수정할 수 있습니다. 기관 조회 대출은 유효한 대출 조회 동의가 없으면 403 consent_required이며 변경하지 않습니다.\n\n원본: `docs/api/loans.md`",
+        "description": "본인의 상환 중(repaying) 기관 조회/직접 등록 대출에서 monthlyPayment·paymentDay·repaymentMethod를 수정하고, 직접 등록 대출은 등록 때 입력한 lenderName·productName·manualBalance·manualRate·maturityDate도 정정합니다. 정정은 지난 납부액·연결 거래·회차 ID를 바꾸지 않고 가짜 납부를 만들지 않으며, manualBalance 0원도 전체 완납으로 바꾸지 않습니다. 생략은 유지하고 null은 해당 값을 비웁니다. 빈 문자열·범위 밖·허용 외 필드는 400 invalid이며 전체 미저장입니다. 기관 원본·status·origin·소유자·연결 ID·fieldStates는 수정할 수 없습니다. 상환 완료(repaid) 대출은 없는/타인 대출과 같은 404입니다.\n\n같은 값을 재전송해도 같은 결과이며 Idempotency-Key를 쓰지 않습니다. 월 상환액과 납부일이 모두 있으면 이번 주기 납부 예정을 중복 없이 생성하고 둘 중 하나가 없으면 새 납부 예정을 만들지 않습니다. 승인된 예산을 사용자 승인 없이 바꾸지 않으며 보완 저장은 대출 전체 상환 완료 처리가 아닙니다.\n\n응답은 목록으로 감싸지 않은 대출 한 건입니다. 기관 조회 대출의 origin:provider는 유지하며 입력 확인 정보는 서버가 구성합니다.\n\n직접 등록 대출은 조회 동의 없이 수정할 수 있습니다. 기관 조회 대출은 유효한 대출 조회 동의가 없으면 403 consent_required이며 변경하지 않습니다.\n\n원본: `docs/api/loans.md`",
         "x-source": "docs/api/loans.md",
         "responses": {
           "200": {
@@ -4509,13 +4724,13 @@
     },
     "/api/finance/loan-dues/{id}/payments/": {
       "get": {
-        "summary": "[구현] 대출 납부 거래 후보 보기",
+        "summary": "대출 납부 거래 후보 보기",
         "tags": [
           "대출"
         ],
         "operationId": "getLoanDuePayments",
         "x-source": "docs/api/loans.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n회차 상태·연결한 출금·고를 수 있는 내 계좌 출금 후보를 줍니다. 금액이 다르거나 적요에 기관 이름이 없어도 후보에서 빼지 않습니다. 기본 기간은 납부일 ±7일(오늘까지), from·to로 최대 92일. 후보에서 빼는 거래: 다른 회원·취소·내 계좌 이체(R11 확인 중 포함)·저축·입금·고정지출/정기 저축 근거·내 계좌 이체 또는 카드 승인(SAME_PURCHASE)으로 묶인 출금·다른 회차에 이미 연결된 출금. 정렬은 연결 계좌·전에 확인한 계좌/적요 → 납부일 근처 → 날짜·금액 차이(참고만). 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 대출 → 회차 → 거래 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
+        "description": "회차 상태·연결한 출금·고를 수 있는 내 계좌 출금 후보를 줍니다. 금액이 다르거나 적요에 기관 이름이 없어도 후보에서 빼지 않습니다. 기본 기간은 납부일 ±7일(오늘까지), from·to로 최대 92일. 후보에서 빼는 거래: 다른 회원·취소·내 계좌 이체(확인 중인 것 포함)·저축·입금·고정지출/정기 저축 근거·내 계좌 이체 또는 카드 승인(SAME_PURCHASE)으로 묶인 출금·다른 회차에 이미 연결된 출금. 정렬은 연결 계좌·전에 확인한 계좌/적요 → 납부일 근처 → 날짜·금액 차이(참고만). 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 대출 → 회차 → 거래 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
         "parameters": [
           {
             "name": "id",
@@ -4810,13 +5025,13 @@
         "x-implementation-status": "implemented"
       },
       "post": {
-        "summary": "[구현] 대출 납부 거래 연결 · 정정",
+        "summary": "대출 납부 거래 연결 · 정정",
         "tags": [
           "대출"
         ],
         "operationId": "linkLoanDuePayment",
         "x-source": "docs/api/loans.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n고른 출금을 이 회차에 연결하고 사용자가 고른 판단(full·partial)을 저장합니다. 같은 거래로 다시 보내면 판단만 정정하며 연결은 하나만 남습니다(바뀐 것이 없으면 아무것도 쓰지 않음). full은 회차에 하나만(다른 출금을 full로 고르면 앞의 것은 partial). 연결하면 거래 유형이 loan_repayment(사용자 확인)로 바뀌어 소비 합계에서 빠집니다. 대출 status·monthlyPayment·회차 예정액·승인 예산은 바꾸지 않습니다. 사용자 판단은 홈 재조회·재수집·상태 재계산 뒤에도 유지됩니다. 같은 거래를 두 회차에 동시에 연결하면 한쪽만 성공합니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 대출 → 회차 → 거래 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
+        "description": "고른 출금을 이 회차에 연결하고 사용자가 고른 판단(full·partial)을 저장합니다. 같은 거래로 다시 보내면 판단만 정정하며 연결은 하나만 남습니다(바뀐 것이 없으면 아무것도 쓰지 않음). full은 회차에 하나만(다른 출금을 full로 고르면 앞의 것은 partial). 연결하면 거래 유형이 loan_repayment(사용자 확인)로 바뀌어 소비 합계에서 빠집니다. 대출 status·monthlyPayment·회차 예정액·승인 예산은 바꾸지 않습니다. 사용자 판단은 홈 재조회·재수집·상태 재계산 뒤에도 유지됩니다. 같은 거래를 두 회차에 동시에 연결하면 한쪽만 성공합니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 대출 → 회차 → 거래 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
         "parameters": [
           {
             "name": "id",
@@ -5118,13 +5333,13 @@
     },
     "/api/finance/loan-dues/{id}/payments/{transactionId}/": {
       "delete": {
-        "summary": "[구현] 대출 납부 거래 연결 취소",
+        "summary": "대출 납부 거래 연결 취소",
         "tags": [
           "대출"
         ],
         "operationId": "releaseLoanDuePayment",
         "x-source": "docs/api/loans.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n연결을 풀고 분류를 정합니다. 이 연결이 바꾼 분류는 그 뒤 바뀌지 않았을 때만 원래 값으로 되돌리고(restored), 그 뒤 사용자가 바꿨으면 그대로 둡니다(kept). 원래 분류 기록이 없는 거래(예전 자동 연결 등, cancelEffect.kind: choose)는 본문의 restoreType(·restoreCategory)이 없으면 400이며 연결·분류를 바꾸지 않습니다 — 받으면 연결 해제와 분류 변경을 함께 처리합니다(chosen). 원래 분류를 추측해 복원하지 않습니다. 그 회차에는 자동 연결이 다시 붙지 않습니다. 이미 풀린 연결의 재전송은 200 + released: null이며 아무것도 바꾸지 않습니다. 응답의 released로 실제 결과를 안내합니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 대출 → 회차 → 거래 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
+        "description": "연결을 풀고 분류를 정합니다. 이 연결이 바꾼 분류는 그 뒤 바뀌지 않았을 때만 원래 값으로 되돌리고(restored), 그 뒤 사용자가 바꿨으면 그대로 둡니다(kept). 원래 분류 기록이 없는 거래(예전 자동 연결 등, cancelEffect.kind: choose)는 본문의 restoreType(·restoreCategory)이 없으면 400이며 연결·분류를 바꾸지 않습니다 — 받으면 연결 해제와 분류 변경을 함께 처리합니다(chosen). 원래 분류를 추측해 복원하지 않습니다. 그 회차에는 자동 연결이 다시 붙지 않습니다. 이미 풀린 연결의 재전송은 200 + released: null이며 아무것도 바꾸지 않습니다. 응답의 released로 실제 결과를 안내합니다. 저장된 거래만 사용하며 CODEF를 호출하지 않습니다. 회원 잠금 → 대출 → 회차 → 거래 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
         "parameters": [
           {
             "name": "id",
@@ -5418,13 +5633,13 @@
     },
     "/api/finance/loans/{id}/payoff/": {
       "post": {
-        "summary": "[구현] 대출 전체 완납 처리 (직접 등록)",
+        "summary": "대출 전체 완납 처리 (직접 등록)",
         "tags": [
           "대출"
         ],
         "operationId": "payoffManualLoan",
         "x-source": "docs/api/loans.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n‘이 대출을 전부 갚았어요’. 이번 회차 납부와 다른 동작입니다. 직접 등록(manual) 대출을 사용자 신고로 상환 종료(repaid)하고 처리 시각·이전 잔액을 근거로 남깁니다. 처리일은 오늘이며 소급 날짜는 받지 않습니다(빈 본문 외 400). 잔액은 0으로 표시합니다. 납부 거래·납부액은 만들지 않고 대출 행을 지우지 않습니다.\n\n오늘 이후 납부 회차 중 납부·연결 근거가 없는 것만 취소합니다. 오늘·지난 회차와 일부라도 낸 회차는 그대로 남아 홈 ‘꼭 나갈 돈’과 [납부 거래 확인]에서 계속 정리합니다. 이후 홈 조회·재매칭·다음 주기에도 새 회차를 만들지 않으며 지킬 돈의 대출 합계에서 빠집니다. 승인 전 예산 초안만 만료하고 승인된 예산·쿠션·생활비는 바꾸지 않습니다. 이미 완납이면 처음 기록을 그대로 200으로 돌려줍니다. 기관 조회 대출은 409 not_ready. CODEF를 호출하지 않습니다. 회원 → 대출 → 회차 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
+        "description": "‘이 대출을 전부 갚았어요’. 이번 회차 납부와 다른 동작입니다. 직접 등록(manual) 대출을 사용자 신고로 상환 종료(repaid)하고 처리 시각·이전 잔액을 근거로 남깁니다. 처리일은 오늘이며 소급 날짜는 받지 않습니다(빈 본문 외 400). 잔액은 0으로 표시합니다. 납부 거래·납부액은 만들지 않고 대출 행을 지우지 않습니다.\n\n오늘 이후 납부 회차 중 납부·연결 근거가 없는 것만 취소합니다. 오늘·지난 회차와 일부라도 낸 회차는 그대로 남아 홈 ‘꼭 나갈 돈’과 [납부 거래 확인]에서 계속 정리합니다. 이후 홈 조회·재매칭·다음 주기에도 새 회차를 만들지 않으며 지킬 돈의 대출 합계에서 빠집니다. 승인 전 예산 초안만 만료하고 승인된 예산·쿠션·생활비는 바꾸지 않습니다. 이미 완납이면 처음 기록을 그대로 200으로 돌려줍니다. 기관 조회 대출은 409 not_ready. CODEF를 호출하지 않습니다. 회원 → 대출 → 회차 순으로 잠급니다.\n\n원본: `docs/api/loans.md`",
         "parameters": [
           {
             "name": "id",
@@ -5658,13 +5873,13 @@
     },
     "/api/finance/loans/{id}/payoff/cancel/": {
       "post": {
-        "summary": "[구현] 대출 전체 완납 되돌리기",
+        "summary": "대출 전체 완납 되돌리기",
         "tags": [
           "대출"
         ],
         "operationId": "cancelManualLoanPayoff",
         "x-source": "docs/api/loans.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n잘못 누른 전체 완납을 되돌립니다. reportedAt이 지금 저장된 완납 처리와 같아야 하며, 다르면(그 뒤 다시 완납됨) 409 not_ready로 최신 상태를 덮지 않습니다. 상환 중으로 바꾸고 잔액이 완납 때 넣은 0원이면 이전 잔액으로 복구합니다. 납부 기록·연결은 그대로 두고, 이번 주기 회차만 기존 규칙으로 다시 준비합니다(같은 회차를 다시 살리며 지난 주기 회차는 만들지 않음). 승인 전 예산 초안만 만료합니다. 이미 상환 중이면 그대로 200. 완납 근거 기록은 지우지 않고 되돌린 시각을 덧붙입니다.\n\n원본: `docs/api/loans.md`",
+        "description": "잘못 누른 전체 완납을 되돌립니다. reportedAt이 지금 저장된 완납 처리와 같아야 하며, 다르면(그 뒤 다시 완납됨) 409 not_ready로 최신 상태를 덮지 않습니다. 상환 중으로 바꾸고 잔액이 완납 때 넣은 0원이면 이전 잔액으로 복구합니다. 납부 기록·연결은 그대로 두고, 이번 주기 회차만 기존 규칙으로 다시 준비합니다(같은 회차를 다시 살리며 지난 주기 회차는 만들지 않음). 승인 전 예산 초안만 만료합니다. 이미 상환 중이면 그대로 200. 완납 근거 기록은 지우지 않고 되돌린 시각을 덧붙입니다.\n\n원본: `docs/api/loans.md`",
         "parameters": [
           {
             "name": "id",
@@ -5899,12 +6114,12 @@
     },
     "/api/finance/transactions/": {
       "get": {
-        "summary": "[구현] 거래 목록 보기",
+        "summary": "거래 목록 보기",
         "tags": [
           "거래"
         ],
         "operationId": "listTransactions",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n거래 목록은 spending(소비)·income(입금)·transfer(남에게 보낸 이체)만 반환합니다. own_transfer·saving·loan_repayment·card_payment는 제외합니다. 같은 구매의 카드 승인/계좌 출금이 SAME_PURCHASE로 연결되면 카드 승인을 대표로 남기고 계좌 출금은 목록·summary·챗봇 소비 집계에서 제외합니다. 아직 연결되지 않은 계좌 출금은 포함합니다. 고정지출 연결 거래는 funding:fixed로 포함합니다.\n\n기간은 달력월 기준이며 홈의 급여주기와 다릅니다. 기본 from은 이번 달 1일, to는 오늘입니다. category=UNCLASSIFIED에 기간을 보내지 않으면 전체 기간(basis:all), period.from은 가장 오래된 확인 필요 거래일 또는 null입니다. from 또는 to를 명시하면 basis:custom입니다. 거래일→거래 시각 최신순이며 시각이 없으면 같은 날 맨 뒤입니다. 날짜별 그룹과 합계는 화면에서 만듭니다.\n\nsummary는 이번 응답 items의 소계입니다. spentTotal은 spending의 netAmount 합이며 funding:fixed도 포함합니다. needsReviewCount는 응답 items의 확인 필요 소비 수입니다. income/transfer는 category·categoryName·classifyState·funding:null이며 소비 합계/카테고리 칩/확인 필요 수에서 제외합니다. category 필터를 쓰면 income/transfer는 나오지 않습니다. 거래가 없으면 items:[], spentTotal:0입니다. 홈의 전체 확인 필요 수와 맞추려면 category=UNCLASSIFIED만 보내고 기간을 보내지 않습니다. 이 소계를 급여주기 기반 남은 생활비/예산 사용액으로 사용하지 않습니다.\n\n저장된 자료를 읽는 금융 GET이며 CODEF를 호출하지 않습니다. 기관 조회 실패를 빈 목록/0원으로 바꾸지 않습니다. 거래 유형 필터는 1차에 없으며 페이지네이션·next 필요 여부는 3개월 데이터량 확인 후 결정합니다. 미정인 페이지/유형 필터는 추가하지 않았습니다.\n\n원본: `docs/api/transactions.md`",
+        "description": "거래 목록은 spending(소비)·income(입금)·transfer(남에게 보낸 이체)만 반환합니다. own_transfer·saving·loan_repayment·card_payment는 제외합니다. 같은 구매의 카드 승인/계좌 출금이 SAME_PURCHASE로 연결되면 카드 승인을 대표로 남기고 계좌 출금은 목록·summary·챗봇 소비 집계에서 제외합니다. 아직 연결되지 않은 계좌 출금은 포함합니다. 고정지출 연결 거래는 funding:fixed로 포함합니다.\n\n기간은 달력월 기준이며 홈의 급여주기와 다릅니다. 기본 from은 이번 달 1일, to는 오늘입니다. category=UNCLASSIFIED에 기간을 보내지 않으면 전체 기간(basis:all), period.from은 가장 오래된 확인 필요 거래일 또는 null입니다. from 또는 to를 명시하면 basis:custom입니다. 거래일→거래 시각 최신순이며 시각이 없으면 같은 날 맨 뒤입니다. 날짜별 그룹과 합계는 화면에서 만듭니다.\n\nsummary는 이번 응답 items의 소계입니다. spentTotal은 spending의 netAmount 합이며 funding:fixed도 포함합니다. needsReviewCount는 응답 items의 확인 필요 소비 수입니다. income/transfer는 category·categoryName·classifyState·funding:null이며 소비 합계/카테고리 칩/확인 필요 수에서 제외합니다. category 필터를 쓰면 income/transfer는 나오지 않습니다. 거래가 없으면 items:[], spentTotal:0입니다. 홈의 전체 확인 필요 수와 맞추려면 category=UNCLASSIFIED만 보내고 기간을 보내지 않습니다. 이 소계를 급여주기 기반 남은 생활비/예산 사용액으로 사용하지 않습니다.\n\n저장된 자료를 읽는 금융 GET이며 CODEF를 호출하지 않습니다. 기관 조회 실패를 빈 목록/0원으로 바꾸지 않습니다. 페이지 나누기 없이 조건에 맞는 거래를 모두 반환합니다.\n\n원본: `docs/api/transactions.md`",
         "x-source": "docs/api/transactions.md",
         "responses": {
           "200": {
@@ -6189,7 +6404,7 @@
             "name": "category",
             "in": "query",
             "required": false,
-            "description": "없으면 전체. 쉼표로 여러 개(11/3, 그중 하나면 포함). UNCLASSIFIED 하나만이면 확인 필요 소비만·기간 생략 시 전체 기간. 필터 사용 시 입금·이체 제외. 모르는 코드가 있으면 400.",
+            "description": "없으면 전체. 쉼표로 여러 개(그중 하나면 포함). UNCLASSIFIED 하나만이면 확인 필요 소비만·기간 생략 시 전체 기간. 필터 사용 시 입금·이체 제외. 모르는 코드가 있으면 400.",
             "schema": {
               "type": "string"
             },
@@ -6199,7 +6414,7 @@
             "name": "accountId",
             "in": "query",
             "required": false,
-            "description": "이 계좌의 거래만(11/3). 쉼표로 여러 개. cardId와 같이 보내면 둘 중 하나. 형식 오류·없음·남의 것은 400.",
+            "description": "이 계좌의 거래만. 쉼표로 여러 개. cardId와 같이 보내면 둘 중 하나. 형식 오류·없음·남의 것은 400.",
             "schema": {
               "type": "string"
             },
@@ -6209,7 +6424,7 @@
             "name": "cardId",
             "in": "query",
             "required": false,
-            "description": "이 카드의 거래만(11/3). 쉼표로 여러 개. 형식 오류·없음·남의 것은 400.",
+            "description": "이 카드의 거래만. 쉼표로 여러 개. 형식 오류·없음·남의 것은 400.",
             "schema": {
               "type": "string"
             },
@@ -6219,7 +6434,7 @@
             "name": "transactionType",
             "in": "query",
             "required": false,
-            "description": "거래 유형만(11/9): spending 소비 · income 입금 · transfer 이체(남에게 보낸 이체 + 내 계좌 이체 줄). 쉼표로 여러 개. category와 같이 보내면 둘 다 만족. 모르는 값은 400.",
+            "description": "거래 유형만: spending 소비 · income 입금 · transfer 이체(남에게 보낸 이체 + 내 계좌 이체 줄). 쉼표로 여러 개. category와 같이 보내면 둘 다 만족. 모르는 값은 400.",
             "schema": {
               "type": "string"
             },
@@ -6253,12 +6468,12 @@
     },
     "/api/finance/transactions/{id}/": {
       "get": {
-        "summary": "[구현] 거래 한 건 보기",
+        "summary": "거래 한 건 보기",
         "tags": [
           "거래"
         ],
         "operationId": "retrieveTransaction",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n목록에 노출 가능한 본인 거래 한 건을 반환합니다. 원문은 <uuid:transaction_id> 경로이며 OpenAPI의 {id}는 같은 transactionId를 뜻합니다. 없는/타인 거래, 잘못된 UUID, SAME_PURCHASE로 제외한 계좌 출금·카드값 등 목록에 나오지 않는 거래는 모두 같은 JSON 404입니다.\n\n목록 항목에 installmentMonths·suggestion·classifiedBy·updatedAt을 더합니다. 사용자가 이미 확정한 분류의 suggestion은 null입니다. 후보는 확신도 높은 순의 category/categoryName만 반환하고 confidence 숫자는 보내지 않습니다. 카드 승인번호·거래 후 잔액·원래 이체 여부(field_states.original_transaction_type)는 응답에 노출하지 않습니다. 카드 승인 거래는 paymentCard만, 계좌 거래는 paymentAccount만 채웁니다. 원천/기록을 모르는 표시 객체는 null입니다.\n\ntransfer에는 화면에서 “소비로 분류하기”를 제공할 수 있고 income의 카테고리는 수정할 수 없습니다. 상세 분류 근거의 추가 범위와 취소/원거래 연결 노출은 아직 확인 대상이며 새 필드는 추가하지 않았습니다.\n\n원본: `docs/api/transactions.md`",
+        "description": "목록에 노출 가능한 본인 거래 한 건을 반환합니다. 원문은 <uuid:transaction_id> 경로이며 OpenAPI의 {id}는 같은 transactionId를 뜻합니다. 없는/타인 거래, 잘못된 UUID, SAME_PURCHASE로 제외한 계좌 출금·카드값 등 목록에 나오지 않는 거래는 모두 같은 JSON 404입니다.\n\n목록 항목에 installmentMonths·suggestion·classifiedBy·updatedAt을 더합니다. 사용자가 이미 확정한 분류의 suggestion은 null입니다. 후보는 확신도 높은 순의 category/categoryName만 반환하고 confidence 숫자는 보내지 않습니다. 카드 승인번호·거래 후 잔액·원래 이체 여부(field_states.original_transaction_type)는 응답에 노출하지 않습니다. 카드 승인 거래는 paymentCard만, 계좌 거래는 paymentAccount만 채웁니다. 원천/기록을 모르는 표시 객체는 null입니다.\n\ntransfer에는 화면에서 “소비로 분류하기”를 제공할 수 있고 income의 카테고리는 수정할 수 없습니다. 상세 분류 근거의 추가 범위와 취소/원거래 연결 노출은 아직 확인 대상이며 새 필드는 추가하지 않았습니다.\n\n원본: `docs/api/transactions.md`",
         "x-source": "docs/api/transactions.md",
         "responses": {
           "200": {
@@ -6425,12 +6640,12 @@
         "x-implementation-status": "implemented"
       },
       "patch": {
-        "summary": "[구현] 거래 분류 수정",
+        "summary": "거래 분류 수정",
         "tags": [
           "거래"
         ],
         "operationId": "updateTransactionCategory",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n요청은 필수 category 한 칸만 받습니다. 선택 가능한 10개 카테고리와 ETC만 허용하며 UNCLASSIFIED로 되돌릴 수 없습니다. 금액·날짜·가맹점명·classifyState·funding 등 허용 외 필드는 400 invalid입니다. 같은 확정 카테고리 재전송은 200이며 Idempotency-Key를 쓰지 않습니다. 저장하면 classifyState:confirmed, classifiedBy:user, suggestion:null입니다.\n\ntransfer에 카테고리를 보내면 spending으로 바뀌어 소비 합계·예산에 반영됩니다. category:null은 원래 이체였던 거래를 다시 transfer로 돌릴 때만 허용합니다. 원래 소비 거래의 null 또는 income에 대한 수정은 400입니다. 원래 이체 여부는 서버 field_states에 보존하고 응답에는 내보내지 않습니다. 이체 수취인은 기억하지 않아 같은 사람에게 다음에 보낸 이체는 다시 transfer입니다.\n\n고정지출 연결 거래는 카테고리를 바꿔도 funding:fixed와 연결을 유지합니다. 이체가 확정 고정지출에 금액·날짜 ±3일로 연결되면 spending·고정지출 카테고리·funding:fixed가 되고 소비 분석에는 포함되며 생활비 사용액에서는 빠집니다. 이런 거래에 category:null은 400이며 연결을 먼저 풀어야 합니다. 연결 해제 시 원래 transfer로 복원하고 category·funding을 비웁니다.\n\n사용자가 고른 카테고리는 같은 가맹점의 새 거래에 먼저 쓰되 기존 거래를 일괄 수정하지 않습니다. 다품목 가맹점은 applyToFuture:true일 때만 기억합니다. 체크하지 않으면 백화점·종합 온라인몰은 다음 거래도 UNCLASSIFIED이고, 편의점·슈퍼·대형마트는 식비, 다이소는 생활용품으로 자동 분류됩니다. 다품목 사전/제외 구현과 분류 변경 후 예산 사용액 재계산 시점은 구현 조율 대상입니다. 분류 변경만으로 승인 전 예산 초안을 만료시키지 않습니다.\n\n내 계좌 이체 확인(R11): {\"ownTransfer\": true|false}만 보낸다. 잠근 뒤 다시 읽은 현재 상태로 판단해 suggested·rejected인 transfer, auto·confirmed인 own_transfer·saving 은행 출금만 바꾼다. 판단 표시가 남아도 지금 소비 등이면 400(오래된 화면·동시 요청이 사용자 분류를 덮지 않음). 취소·납부 연결·고정비 충당도 400(fields.ownTransfer). saving 출금을 false로 정정하면 정기 저축 근거에서 빠지며, 고정지출 근거이기도 하면 400. 이미 원하는 상태면 200. own_transfer·saving 거래에 category를 보내면 400.\n\n원본: `docs/api/transactions.md`",
+        "description": "요청은 필수 category 한 칸만 받습니다. 선택 가능한 10개 카테고리와 ETC만 허용하며 UNCLASSIFIED로 되돌릴 수 없습니다. 금액·날짜·가맹점명·classifyState·funding 등 허용 외 필드는 400 invalid입니다. 같은 확정 카테고리 재전송은 200이며 Idempotency-Key를 쓰지 않습니다. 저장하면 classifyState:confirmed, classifiedBy:user, suggestion:null입니다.\n\ntransfer에 카테고리를 보내면 spending으로 바뀌어 소비 합계·예산에 반영됩니다. category:null은 원래 이체였던 거래를 다시 transfer로 돌릴 때만 허용합니다. 원래 소비 거래의 null 또는 income에 대한 수정은 400입니다. 원래 이체 여부는 서버 field_states에 보존하고 응답에는 내보내지 않습니다. 이체 수취인은 기억하지 않아 같은 사람에게 다음에 보낸 이체는 다시 transfer입니다.\n\n고정지출 연결 거래는 카테고리를 바꿔도 funding:fixed와 연결을 유지합니다. 이체가 확정 고정지출에 금액·날짜 ±3일로 연결되면 spending·고정지출 카테고리·funding:fixed가 되고 소비 분석에는 포함되며 생활비 사용액에서는 빠집니다. 이런 거래에 category:null은 400이며 연결을 먼저 풀어야 합니다. 연결 해제 시 원래 transfer로 복원하고 category·funding을 비웁니다.\n\n사용자가 고른 카테고리는 같은 가맹점의 새 거래에 먼저 쓰되 기존 거래를 일괄 수정하지 않습니다. 다품목 가맹점은 applyToFuture:true일 때만 기억합니다. 체크하지 않으면 백화점·종합 온라인몰은 다음 거래도 UNCLASSIFIED이고, 편의점·슈퍼·대형마트는 식비, 다이소는 생활용품으로 자동 분류됩니다. 다품목 사전/제외 구현과 분류 변경 후 예산 사용액 재계산 시점은 구현 조율 대상입니다. 분류 변경만으로 승인 전 예산 초안을 만료시키지 않습니다.\n\n내 계좌 이체 확인: {\"ownTransfer\": true|false}만 보낸다. 잠근 뒤 다시 읽은 현재 상태로 판단해 suggested·rejected인 transfer, auto·confirmed인 own_transfer·saving 은행 출금만 바꾼다. 판단 표시가 남아도 지금 소비 등이면 400(오래된 화면·동시 요청이 사용자 분류를 덮지 않음). 취소·납부 연결·고정비 충당도 400(fields.ownTransfer). saving 출금을 false로 정정하면 정기 저축 근거에서 빠지며, 고정지출 근거이기도 하면 400. 이미 원하는 상태면 200. own_transfer·saving 거래에 category를 보내면 400.\n\n원본: `docs/api/transactions.md`",
         "x-source": "docs/api/transactions.md",
         "responses": {
           "200": {
@@ -6638,13 +6853,13 @@
     },
     "/api/budgets/fixed/": {
       "get": {
-        "summary": "[구현] 고정지출 목록 보기",
+        "summary": "고정지출 목록 보기",
         "operationId": "fixedList",
         "tags": [
           "고정지출"
         ],
         "x-source": "docs/api/fixed.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n후보(suggested)·확정(confirmed)을 함께 반환한다. 후보는 created_at 최신순, 확정은 출금일 빠른 순이며 출금일 null은 마지막. 페이지 나누기와 조회 쿼리 없음. 후보·확정이 없으면 items=[] 및 합계·후보 수 0으로 200. 연결 해제된 결제 수단도 고정지출과 월 합계에서 제외하지 않는다.\n\n근거 거래 제안은 목록에만 evidenceSuggestion으로 추가한다. 최대 5개 후보를 반환하며 count는 전체 수. 맞는 카드는 1건이면 “이 결제가 맞나요?”, 여러 건이면 [고르기]. 계좌는 여러 건일 때 [고르기]. 선택은 PATCH evidenceTransactionId로 저장하며 [아니에요]·“이 중에 없어요”는 요청·저장하지 않고 다음 달 새 결제에서 다시 묻는다. 출금일이 없으면 제안하지 않는다.\n\n근거 거래는 본인의 선택한 카드·계좌 거래이며 다른 고정지출에 이미 연결된 거래는 사용할 수 없다. 같은 고정지출의 같은 거래 재전송은 성공한다. 결제 수단 모름 상태에서 거래를 지정하면 400 invalid. 거래를 연결하면 재원을 fixed로 분류해 생활비에서 중복 집계하지 않는다. 이름으로 같은 비용을 찾지 않는다. 기억한 가맹점이 있으면 가맹점·같은 카드·금액 ±10%로 매칭한다. 근거가 없거나 이번 주기에 연결된 결제가 없는 카드(가게 이름이 바뀌어 자동 연결이 안 된 달 등, 11/4)는 같은 카드·금액 ±10%·날짜 ±3일로 제안한다. 계좌 출금은 맞는 건이 1개이고 사용자가 전에 이 고정지출로 고른 출금(또는 확정한 감지 후보의 근거 출금, 11/4)과 적요가 같을 때만 자동 연결하고, 그 밖(처음 보는 1건·여러 건)은 사용자가 확인하거나 고른다(11/3). 출금일 +3일이 지나 미납 확인 필요(needs_review)가 된 회차는 출금일 −3일부터 오늘까지의 같은 계좌·금액 ±10% 출금을 후보로 보여 늦게 낸 출금도 고르게 한다. 늦은 출금은 자동 연결하지 않는다.\n\n원본: `docs/api/fixed.md`",
+        "description": "후보(suggested)·확정(confirmed)을 함께 반환한다. 후보는 created_at 최신순, 확정은 출금일 빠른 순이며 출금일 null은 마지막. 페이지 나누기와 조회 쿼리 없음. 후보·확정이 없으면 items=[] 및 합계·후보 수 0으로 200. 연결 해제된 결제 수단도 고정지출과 월 합계에서 제외하지 않는다.\n\n근거 거래 제안은 목록에만 evidenceSuggestion으로 추가한다. 최대 5개 후보를 반환하며 count는 전체 수. 맞는 카드는 1건이면 “이 결제가 맞나요?”, 여러 건이면 [고르기]. 계좌는 여러 건일 때 [고르기]. 선택은 PATCH evidenceTransactionId로 저장하며 [아니에요]·“이 중에 없어요”는 요청·저장하지 않고 다음 달 새 결제에서 다시 묻는다. 출금일이 없으면 제안하지 않는다.\n\n근거 거래는 본인의 선택한 카드·계좌 거래이며 다른 고정지출에 이미 연결된 거래는 사용할 수 없다. 같은 고정지출의 같은 거래 재전송은 성공한다. 결제 수단 모름 상태에서 거래를 지정하면 400 invalid. 거래를 연결하면 재원을 fixed로 분류해 생활비에서 중복 집계하지 않는다. 이름으로 같은 비용을 찾지 않는다. 기억한 가맹점이 있으면 가맹점·같은 카드·금액 ±10%로 매칭한다. 근거가 없거나 이번 주기에 연결된 결제가 없는 카드(가게 이름이 바뀌어 자동 연결이 안 된 달 등)는 같은 카드·금액 ±10%·날짜 ±3일로 제안한다. 계좌 출금은 맞는 건이 1개이고 사용자가 전에 이 고정지출로 고른 출금(또는 확정한 감지 후보의 근거 출금)과 적요가 같을 때만 자동 연결하고, 그 밖(처음 보는 1건·여러 건)은 사용자가 확인하거나 고른다. 출금일 +3일이 지나 미납 확인 필요(needs_review)가 된 회차는 출금일 −3일부터 오늘까지의 같은 계좌·금액 ±10% 출금을 후보로 보여 늦게 낸 출금도 고르게 한다. 늦은 출금은 자동 연결하지 않는다.\n\n원본: `docs/api/fixed.md`",
         "responses": {
           "200": {
             "description": "후보·확정 목록과 표시용 월 합계.",
@@ -6850,13 +7065,13 @@
         "x-implementation-status": "implemented"
       },
       "post": {
-        "summary": "[구현] 고정지출 직접 추가",
+        "summary": "고정지출 직접 추가",
         "operationId": "fixedCreate",
         "tags": [
           "고정지출"
         ],
         "x-source": "docs/api/fixed.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n직접 추가는 즉시 confirmed·manual로 저장하고 confirmedAt에 저장 시각을 기록한다. 저장 성공은 예산 변경 승인이나 실제 출금 실행이 아니다. 1차 추가 화면은 evidenceTransactionId를 보내지 않고 저장 뒤 목록의 제안에서 고른다.\n\n매월 반복 지출 설정을 다룬다. 저축·투자·대출 상환·카드 청구액 자체는 고정지출이 아니다. 고정지출 합계가 월급보다 커도 범위 안의 항목은 저장하며 부족액은 예산에서 안내한다. status·sourceType·confirmedAt은 서버가 정한다. 목록에 적힌 칸 외 요청과 빈 문자열은 400 invalid.\n\n결제 계좌는 내 관리 대상 입출금 계좌이며 연결 해제 상태와 저축 용도는 새로 고를 수 없다. 카드는 내 관리 대상이며 연결 해제 상태를 새로 고를 수 없다. 계좌와 카드를 동시에 지정할 수 없고 둘 다 null이면 모름이다. PATCH에서 현재와 동일한 계좌·카드 ID는 연결 해제되어도 그대로 유지할 수 있다.\n\n카드 고정지출은 별도 PaymentDue를 만들지 않는다. 계좌 또는 결제 수단 모름은 출금일이 있을 때만 이번 급여 주기 한 건을 만든다. 확정 당시 출금일이 이미 지났으면 실제 출금이 있을 때만 낸 것으로 연결하고, 없으면 이번 주기 납부 예정은 만들지 않는다. 다음 주기 것은 해당 주기에 홈·예산을 처음 열 때 만들며 중복 회차를 만들지 않는다. 이미 결제한 거래·지난 회차·승인된 예산은 보존한다. 고정지출 변경으로 영향을 받은 승인 전 예산 초안은 만료되며 승인된 예산은 자동 변경하지 않는다.\n\n근거 거래는 본인의 선택한 카드·계좌 거래이며 다른 고정지출에 이미 연결된 거래는 사용할 수 없다. 같은 고정지출의 같은 거래 재전송은 성공한다. 결제 수단 모름 상태에서 거래를 지정하면 400 invalid. 거래를 연결하면 재원을 fixed로 분류해 생활비에서 중복 집계하지 않는다. 이름으로 같은 비용을 찾지 않는다. 기억한 가맹점이 있으면 가맹점·같은 카드·금액 ±10%로 매칭한다. 근거가 없거나 이번 주기에 연결된 결제가 없는 카드(가게 이름이 바뀌어 자동 연결이 안 된 달 등, 11/4)는 같은 카드·금액 ±10%·날짜 ±3일로 제안한다. 계좌 출금은 맞는 건이 1개이고 사용자가 전에 이 고정지출로 고른 출금(또는 확정한 감지 후보의 근거 출금, 11/4)과 적요가 같을 때만 자동 연결하고, 그 밖(처음 보는 1건·여러 건)은 사용자가 확인하거나 고른다(11/3). 출금일 +3일이 지나 미납 확인 필요(needs_review)가 된 회차는 출금일 −3일부터 오늘까지의 같은 계좌·금액 ±10% 출금을 후보로 보여 늦게 낸 출금도 고르게 한다. 늦은 출금은 자동 연결하지 않는다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/fixed.md`",
+        "description": "직접 추가는 즉시 confirmed·manual로 저장하고 confirmedAt에 저장 시각을 기록한다. 저장 성공은 예산 변경 승인이나 실제 출금 실행이 아니다. 추가 화면은 evidenceTransactionId를 보내지 않고 저장 뒤 목록의 제안에서 고른다.\n\n매월 반복 지출 설정을 다룬다. 저축·투자·대출 상환·카드 청구액 자체는 고정지출이 아니다. 고정지출 합계가 월급보다 커도 범위 안의 항목은 저장하며 부족액은 예산에서 안내한다. status·sourceType·confirmedAt은 서버가 정한다. 목록에 적힌 칸 외 요청과 빈 문자열은 400 invalid.\n\n결제 계좌는 내 관리 대상 입출금 계좌이며 연결 해제 상태와 저축 용도는 새로 고를 수 없다. 카드는 내 관리 대상이며 연결 해제 상태를 새로 고를 수 없다. 계좌와 카드를 동시에 지정할 수 없고 둘 다 null이면 모름이다. PATCH에서 현재와 동일한 계좌·카드 ID는 연결 해제되어도 그대로 유지할 수 있다.\n\n카드 고정지출은 별도 PaymentDue를 만들지 않는다. 계좌 또는 결제 수단 모름은 출금일이 있을 때만 이번 급여 주기 한 건을 만든다. 확정 당시 출금일이 이미 지났으면 실제 출금이 있을 때만 낸 것으로 연결하고, 없으면 이번 주기 납부 예정은 만들지 않는다. 다음 주기 것은 해당 주기에 홈·예산을 처음 열 때 만들며 중복 회차를 만들지 않는다. 이미 결제한 거래·지난 회차·승인된 예산은 보존한다. 고정지출 변경으로 영향을 받은 승인 전 예산 초안은 만료되며 승인된 예산은 자동 변경하지 않는다.\n\n근거 거래는 본인의 선택한 카드·계좌 거래이며 다른 고정지출에 이미 연결된 거래는 사용할 수 없다. 같은 고정지출의 같은 거래 재전송은 성공한다. 결제 수단 모름 상태에서 거래를 지정하면 400 invalid. 거래를 연결하면 재원을 fixed로 분류해 생활비에서 중복 집계하지 않는다. 이름으로 같은 비용을 찾지 않는다. 기억한 가맹점이 있으면 가맹점·같은 카드·금액 ±10%로 매칭한다. 근거가 없거나 이번 주기에 연결된 결제가 없는 카드(가게 이름이 바뀌어 자동 연결이 안 된 달 등)는 같은 카드·금액 ±10%·날짜 ±3일로 제안한다. 계좌 출금은 맞는 건이 1개이고 사용자가 전에 이 고정지출로 고른 출금(또는 확정한 감지 후보의 근거 출금)과 적요가 같을 때만 자동 연결하고, 그 밖(처음 보는 1건·여러 건)은 사용자가 확인하거나 고른다. 출금일 +3일이 지나 미납 확인 필요(needs_review)가 된 회차는 출금일 −3일부터 오늘까지의 같은 계좌·금액 ±10% 출금을 후보로 보여 늦게 낸 출금도 고르게 한다. 늦은 출금은 자동 연결하지 않는다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/fixed.md`",
         "responses": {
           "201": {
             "description": "생성한 고정지출 한 건. 추가 감싸기 없음.",
@@ -7092,13 +7307,13 @@
     },
     "/api/budgets/fixed/{id}/": {
       "patch": {
-        "summary": "[구현] 고정지출 수정",
+        "summary": "고정지출 수정",
         "operationId": "fixedUpdate",
         "tags": [
           "고정지출"
         ],
         "x-source": "docs/api/fixed.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n후보·확정 항목만 수정 가능. 중지·무시 항목은 404. 바꿀 칸만 보내며 빈 객체는 400. 이름·금액·카테고리 null은 400. 결제 수단 전환은 두 ID를 함께 보내 최종 상태에 하나만 남겨야 한다.\n\n금액·결제 수단·출금일 변경은 이번 주기와 앞으로의 unpaid 회차만 반영하며 paid·partial 회차는 보존한다. 카드로 바꾸거나 출금일을 비우면 미납 예정은 canceled. 출금일이 새로 생기면 납부 예정 생성 규칙에 따른다.\n\n근거 거래 바꾸기·비우기는 이번 주기 연결만 고치고 지난 주기 기록은 보존한다. 바꾸면 기존 연결을 풀고 새 거래를 연결한다. 비우면 가맹점 기억을 지운다(지난 주기 결제는 카드도 고정비로 남기고 다음 달 자동 연결에만 쓰지 않음, 11/4). 원래 소비였던 거래는 fixed 재원을 living으로 되돌린다. 원래 이체였던 거래는 최신 결정 AA⑤·⑥에 따라 transaction_type을 transfer로 복원하고 category·funding을 비운다. 원래 유형은 field_states.original_transaction_type으로 확인한다. 계좌는 PaymentMatch를 지우고 남은 합계가 예정 금액의 90%(올림) 이상이면 paid, 그보다 적으면 partial(11/4), 짝이 없으면 출금일 전 unpaid·지났으면 needs_review로 재계산한다. 결제 수단 변경은 이미 낸 거래(카드 결제 포함, 고정비 유지 11/4)를 보존하고 미납 회차만 취소하며 가맹점 기억을 비운다.\n\n매월 반복 지출 설정을 다룬다. 저축·투자·대출 상환·카드 청구액 자체는 고정지출이 아니다. 고정지출 합계가 월급보다 커도 범위 안의 항목은 저장하며 부족액은 예산에서 안내한다. status·sourceType·confirmedAt은 서버가 정한다. 목록에 적힌 칸 외 요청과 빈 문자열은 400 invalid.\n\n결제 계좌는 내 관리 대상 입출금 계좌이며 연결 해제 상태와 저축 용도는 새로 고를 수 없다. 카드는 내 관리 대상이며 연결 해제 상태를 새로 고를 수 없다. 계좌와 카드를 동시에 지정할 수 없고 둘 다 null이면 모름이다. PATCH에서 현재와 동일한 계좌·카드 ID는 연결 해제되어도 그대로 유지할 수 있다.\n\n카드 고정지출은 별도 PaymentDue를 만들지 않는다. 계좌 또는 결제 수단 모름은 출금일이 있을 때만 이번 급여 주기 한 건을 만든다. 확정 당시 출금일이 이미 지났으면 실제 출금이 있을 때만 낸 것으로 연결하고, 없으면 이번 주기 납부 예정은 만들지 않는다. 다음 주기 것은 해당 주기에 홈·예산을 처음 열 때 만들며 중복 회차를 만들지 않는다. 이미 결제한 거래·지난 회차·승인된 예산은 보존한다. 고정지출 변경으로 영향을 받은 승인 전 예산 초안은 만료되며 승인된 예산은 자동 변경하지 않는다.\n\n근거 거래는 본인의 선택한 카드·계좌 거래이며 다른 고정지출에 이미 연결된 거래는 사용할 수 없다. 같은 고정지출의 같은 거래 재전송은 성공한다. 결제 수단 모름 상태에서 거래를 지정하면 400 invalid. 거래를 연결하면 재원을 fixed로 분류해 생활비에서 중복 집계하지 않는다. 이름으로 같은 비용을 찾지 않는다. 기억한 가맹점이 있으면 가맹점·같은 카드·금액 ±10%로 매칭한다. 근거가 없거나 이번 주기에 연결된 결제가 없는 카드(가게 이름이 바뀌어 자동 연결이 안 된 달 등, 11/4)는 같은 카드·금액 ±10%·날짜 ±3일로 제안한다. 계좌 출금은 맞는 건이 1개이고 사용자가 전에 이 고정지출로 고른 출금(또는 확정한 감지 후보의 근거 출금, 11/4)과 적요가 같을 때만 자동 연결하고, 그 밖(처음 보는 1건·여러 건)은 사용자가 확인하거나 고른다(11/3). 출금일 +3일이 지나 미납 확인 필요(needs_review)가 된 회차는 출금일 −3일부터 오늘까지의 같은 계좌·금액 ±10% 출금을 후보로 보여 늦게 낸 출금도 고르게 한다. 늦은 출금은 자동 연결하지 않는다.\n\n결정 AA⑤·⑥: 확정 고정지출과 금액·날짜(±3일)가 맞아 연결된 원래 이체는 transfer → spending으로 바꾸고 그 고정지출의 category와 funding=fixed를 부여한다. 소비 분석에는 fixedAmount로 포함하고 생활비 사용액에서는 제외한다. 연결 해제 시 위 원래 이체 복원 규칙을 따른다. 일반 소비 거래의 재원 복원과 구분한다.\n\n원본: `docs/api/fixed.md`",
+        "description": "후보·확정 항목만 수정 가능. 중지·무시 항목은 404. 바꿀 칸만 보내며 빈 객체는 400. 이름·금액·카테고리 null은 400. 결제 수단 전환은 두 ID를 함께 보내 최종 상태에 하나만 남겨야 한다.\n\n금액·결제 수단·출금일 변경은 이번 주기와 앞으로의 unpaid 회차만 반영하며 paid·partial 회차는 보존한다. 카드로 바꾸거나 출금일을 비우면 미납 예정은 canceled. 출금일이 새로 생기면 납부 예정 생성 규칙에 따른다.\n\n근거 거래 바꾸기·비우기는 이번 주기 연결만 고치고 지난 주기 기록은 보존한다. 바꾸면 기존 연결을 풀고 새 거래를 연결한다. 비우면 가맹점 기억을 지운다(지난 주기 결제는 카드도 고정비로 남기고 다음 달 자동 연결에만 쓰지 않음). 원래 소비였던 거래는 fixed 재원을 living으로 되돌린다. 원래 이체였던 거래는 transaction_type을 transfer로 복원하고 category·funding을 비운다. 원래 유형은 field_states.original_transaction_type으로 확인한다. 계좌는 PaymentMatch를 지우고 남은 합계가 예정 금액의 90%(올림) 이상이면 paid, 그보다 적으면 partial, 짝이 없으면 출금일 전 unpaid·지났으면 needs_review로 재계산한다. 결제 수단 변경은 이미 낸 거래(카드 결제 포함, 고정비 유지)를 보존하고 미납 회차만 취소하며 가맹점 기억을 비운다.\n\n매월 반복 지출 설정을 다룬다. 저축·투자·대출 상환·카드 청구액 자체는 고정지출이 아니다. 고정지출 합계가 월급보다 커도 범위 안의 항목은 저장하며 부족액은 예산에서 안내한다. status·sourceType·confirmedAt은 서버가 정한다. 목록에 적힌 칸 외 요청과 빈 문자열은 400 invalid.\n\n결제 계좌는 내 관리 대상 입출금 계좌이며 연결 해제 상태와 저축 용도는 새로 고를 수 없다. 카드는 내 관리 대상이며 연결 해제 상태를 새로 고를 수 없다. 계좌와 카드를 동시에 지정할 수 없고 둘 다 null이면 모름이다. PATCH에서 현재와 동일한 계좌·카드 ID는 연결 해제되어도 그대로 유지할 수 있다.\n\n카드 고정지출은 별도 PaymentDue를 만들지 않는다. 계좌 또는 결제 수단 모름은 출금일이 있을 때만 이번 급여 주기 한 건을 만든다. 확정 당시 출금일이 이미 지났으면 실제 출금이 있을 때만 낸 것으로 연결하고, 없으면 이번 주기 납부 예정은 만들지 않는다. 다음 주기 것은 해당 주기에 홈·예산을 처음 열 때 만들며 중복 회차를 만들지 않는다. 이미 결제한 거래·지난 회차·승인된 예산은 보존한다. 고정지출 변경으로 영향을 받은 승인 전 예산 초안은 만료되며 승인된 예산은 자동 변경하지 않는다.\n\n근거 거래는 본인의 선택한 카드·계좌 거래이며 다른 고정지출에 이미 연결된 거래는 사용할 수 없다. 같은 고정지출의 같은 거래 재전송은 성공한다. 결제 수단 모름 상태에서 거래를 지정하면 400 invalid. 거래를 연결하면 재원을 fixed로 분류해 생활비에서 중복 집계하지 않는다. 이름으로 같은 비용을 찾지 않는다. 기억한 가맹점이 있으면 가맹점·같은 카드·금액 ±10%로 매칭한다. 근거가 없거나 이번 주기에 연결된 결제가 없는 카드(가게 이름이 바뀌어 자동 연결이 안 된 달 등)는 같은 카드·금액 ±10%·날짜 ±3일로 제안한다. 계좌 출금은 맞는 건이 1개이고 사용자가 전에 이 고정지출로 고른 출금(또는 확정한 감지 후보의 근거 출금)과 적요가 같을 때만 자동 연결하고, 그 밖(처음 보는 1건·여러 건)은 사용자가 확인하거나 고른다. 출금일 +3일이 지나 미납 확인 필요(needs_review)가 된 회차는 출금일 −3일부터 오늘까지의 같은 계좌·금액 ±10% 출금을 후보로 보여 늦게 낸 출금도 고르게 한다. 늦은 출금은 자동 연결하지 않는다.\n\n확정 고정지출과 금액·날짜(±3일)가 맞아 연결된 원래 이체는 transfer → spending으로 바꾸고 그 고정지출의 category와 funding=fixed를 부여한다. 소비 분석에는 fixedAmount로 포함하고 생활비 사용액에서는 제외한다. 연결 해제 시 위 원래 이체 복원 규칙을 따른다. 일반 소비 거래의 재원 복원과 구분한다.\n\n원본: `docs/api/fixed.md`",
         "responses": {
           "200": {
             "description": "수정 후 한 건 전체. 보내지 않은 칸은 유지.",
@@ -7400,13 +7615,13 @@
         "x-implementation-status": "implemented"
       },
       "delete": {
-        "summary": "[구현] 고정지출 중지",
+        "summary": "고정지출 중지",
         "operationId": "fixedStop",
         "tags": [
           "고정지출"
         ],
         "x-source": "docs/api/fixed.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n본문·쿼리 없음. confirmed 항목을 삭제하지 않고 stopped로 바꾼다. 이미 stopped이면 다시 요청해도 204. suggested·ignored는 404. 이번 주기 unpaid 납부 예정은 canceled로 바꾸며 이미 낸 회차·지난 거래는 보존한다. 카드 청구서의 납부 예정은 취소하지 않는다. 승인 전 초안은 변경 반영 후 만료되고 승인된 예산은 자동 변경하지 않는다. 다시 시작 API는 1차에 없으며 직접 추가로 새 항목을 만든다.\n\n은행 연결 해제 때 같이 중지하기로 선택한 항목도 이 API를 호출한다. 체크하지 않은 항목은 유지된다. 앱의 고정지출 관리만 중지하며 은행 자동이체·외부 구독은 해지하지 않는다.\n\n원본: `docs/api/fixed.md`",
+        "description": "본문·쿼리 없음. confirmed 항목을 삭제하지 않고 stopped로 바꾼다. 이미 stopped이면 다시 요청해도 204. suggested·ignored는 404. 이번 주기 unpaid 납부 예정은 canceled로 바꾸며 이미 낸 회차·지난 거래는 보존한다. 카드 청구서의 납부 예정은 취소하지 않는다. 승인 전 초안은 변경 반영 후 만료되고 승인된 예산은 자동 변경하지 않는다. 다시 시작 API는 없으며 직접 추가로 새 항목을 만든다.\n\n은행 연결 해제 때 같이 중지하기로 선택한 항목도 이 API를 호출한다. 체크하지 않은 항목은 유지된다. 앱의 고정지출 관리만 중지하며 은행 자동이체·외부 구독은 해지하지 않는다.\n\n원본: `docs/api/fixed.md`",
         "responses": {
           "204": {
             "description": "중지 완료 또는 이미 중지됨. 응답 본문 없음."
@@ -7520,13 +7735,13 @@
     },
     "/api/budgets/fixed/confirm/": {
       "post": {
-        "summary": "[구현] 고정지출 후보 확정",
+        "summary": "고정지출 후보 확정",
         "operationId": "fixedConfirm",
         "tags": [
           "고정지출"
         ],
         "x-source": "docs/api/fixed.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n본인 suggested 후보들을 confirmed로 변경한다. 이미 confirmed이면 그대로 성공하며 두 번 반영하지 않는다. 허용 상태 외 항목·없는 ID·남의 ID가 하나라도 있으면 전체를 저장하지 않고 400 invalid. sourceType은 detected로 유지한다. confirmedAt에 확정 시각을 기록한다. 온보딩 [확인하고 다음]은 화면에 남은 고정지출 후보 전부를 한 번에 확정한다. 납부 예정 생성과 승인 전 예산 초안 만료는 공통 규칙을 따른다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/fixed.md`",
+        "description": "본인 suggested 후보들을 confirmed로 변경한다. 이미 confirmed이면 그대로 성공하며 두 번 반영하지 않는다. 허용 상태 외 항목·없는 ID·남의 ID가 하나라도 있으면 전체를 저장하지 않고 400 invalid. sourceType은 detected로 유지한다. confirmedAt에 확정 시각을 기록한다. 온보딩 [확인하고 다음]은 화면에 남은 고정지출 후보 전부를 한 번에 확정한다. 납부 예정 생성과 승인 전 예산 초안 만료는 공통 규칙을 따른다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/fixed.md`",
         "responses": {
           "200": {
             "description": "확정 처리된 항목들. 같은 요청 번호·내용의 재전송은 첫 목록 그대로.",
@@ -7715,13 +7930,13 @@
     },
     "/api/budgets/fixed/ignore/": {
       "post": {
-        "summary": "[구현] 고정지출 후보 무시",
+        "summary": "고정지출 후보 무시",
         "operationId": "fixedIgnore",
         "tags": [
           "고정지출"
         ],
         "x-source": "docs/api/fixed.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n본인 suggested 후보들을 ignored로 변경한다. 이미 ignored이면 그대로 성공하며 두 번 반영하지 않는다. 허용 상태 외 항목·없는 ID·남의 ID가 하나라도 있으면 전체를 저장하지 않고 400 invalid. sourceType은 detected로 유지한다. 무시한 후보를 다시 묻지 않는다. 미확정 후보의 confirmedAt은 null이다. 성공 후 목록을 다시 조회하면 ignored 항목은 빠진다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/fixed.md`",
+        "description": "본인 suggested 후보들을 ignored로 변경한다. 이미 ignored이면 그대로 성공하며 두 번 반영하지 않는다. 허용 상태 외 항목·없는 ID·남의 ID가 하나라도 있으면 전체를 저장하지 않고 400 invalid. sourceType은 detected로 유지한다. 무시한 후보를 다시 묻지 않는다. 미확정 후보의 confirmedAt은 null이다. 성공 후 목록을 다시 조회하면 ignored 항목은 빠진다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/fixed.md`",
         "responses": {
           "200": {
             "description": "무시 처리된 항목들. 같은 요청 번호·내용의 재전송은 첫 목록 그대로.",
@@ -7910,13 +8125,13 @@
     },
     "/api/budgets/savings/": {
       "get": {
-        "summary": "[구현] 정기 저축 목록 보기",
+        "summary": "정기 저축 목록 보기",
         "operationId": "savingsList",
         "tags": [
           "정기 저축"
         ],
         "x-source": "docs/api/savings.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n온보딩 저축 확인과 마이 > 정기 저축에서 사용하는 목록. suggested·confirmed만 반환하고 중지·무시는 제외한다. 후보는 받는 계좌가 예적금(deposit)인 것 먼저, 그다음 created_at 최신순(11/4), 그다음 확정은 이체일 빠른 순이며 null은 마지막. 페이지 나누기 없음.\n\n후보마다 [저축이에요]/[아니에요]를 모두 골라야 온보딩 다음 단계로 이동한다. 확정 목록과 무시 목록을 각자 요청 번호로 보내며 둘 다 성공해야 이동한다. 한쪽이 실패하면 성공한 쪽은 저장되어 있으므로 재시도 시 이미 그 상태로 성공한다. 화면에서 임시 선택한 합계는 미리보기이고 저장 뒤에는 summary.minimumMonthly를 사용한다.\n\n매달 하기로 한 저축 목록만 다룬다. 저축 실적 집계는 거래·예산 영역이다. 저축은 카테고리·고정지출과 별개이며 PaymentDue를 만들지 않는다. 확정된 저축 amount 합계가 저축 최소 금액이며 지킬 돈 savings_floor는 이보다 작을 수 없다. 추가·확정·금액 변경·중지로 저축 최소 금액이 바뀌면 승인 전 예산 초안은 즉시 만료한다. 승인된 이번 달 예산은 그대로 두며 다음 달부터 새 최소 금액을 사용한다.\n\n자동 후보는 내 계좌끼리 같은 받는 계좌로 매달 같은 날 ±3일·같은 금액이 3달 연속일 때 감지한다. 11/4부터 연결 안 한 계좌로 보낸 이체도 적요에 회원 이름이나 [임시] 저축 단어(적금·예금·저축·청약·파킹·납입)가 있으면 저축 후보로 감지한다. 후보 감지 로직 자체와 이번 달 실제 저축 실적은 이 API 범위 밖이다.\n\n원본: `docs/api/savings.md`",
+        "description": "온보딩 저축 확인과 마이 > 정기 저축에서 사용하는 목록. suggested·confirmed만 반환하고 중지·무시는 제외한다. 후보는 받는 계좌가 예적금(deposit)인 것 먼저, 그다음 created_at 최신순, 그다음 확정은 이체일 빠른 순이며 null은 마지막. 페이지 나누기 없음.\n\n후보마다 [저축이에요]/[아니에요]를 모두 골라야 온보딩 다음 단계로 이동한다. 확정 목록과 무시 목록을 각자 요청 번호로 보내며 둘 다 성공해야 이동한다. 한쪽이 실패하면 성공한 쪽은 저장되어 있으므로 재시도 시 이미 그 상태로 성공한다. 화면에서 임시 선택한 합계는 미리보기이고 저장 뒤에는 summary.minimumMonthly를 사용한다.\n\n매달 하기로 한 저축 목록만 다룬다. 저축 실적 집계는 거래·예산 영역이다. 저축은 카테고리·고정지출과 별개이며 PaymentDue를 만들지 않는다. 확정된 저축 amount 합계가 저축 최소 금액이며 지킬 돈 savings_floor는 이보다 작을 수 없다. 추가·확정·금액 변경·중지로 저축 최소 금액이 바뀌면 승인 전 예산 초안은 즉시 만료한다. 승인된 이번 달 예산은 그대로 두며 다음 달부터 새 최소 금액을 사용한다.\n\n자동 후보는 내 계좌끼리 같은 받는 계좌로 매달 같은 날 ±3일·같은 금액이 3달 연속일 때 감지한다. 연결 안 한 계좌로 보낸 이체도 적요에 회원 이름이나 저축 단어(적금·예금·저축·청약·파킹·납입)가 있으면 저축 후보로 감지한다. 후보 감지 로직 자체와 이번 달 실제 저축 실적은 이 API 범위 밖이다.\n\n원본: `docs/api/savings.md`",
         "responses": {
           "200": {
             "description": "후보·확정 목록과 저축 최소 금액.",
@@ -8063,13 +8278,13 @@
         "x-implementation-status": "implemented"
       },
       "post": {
-        "summary": "[구현] 정기 저축 직접 추가",
+        "summary": "정기 저축 직접 추가",
         "operationId": "savingsCreate",
         "tags": [
           "정기 저축"
         ],
         "x-source": "docs/api/savings.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n감지되지 않는 저축을 직접 추가한다. confirmed·manual로 저장하고 confirmedAt=현재 시각, evidenceCount=0. 받는 계좌를 골랐으면 그 계좌 용도를 savings로 표시한다. 두 계좌는 서로 달라야 하며 없는·남의·선택 불가 계좌는 모두 같은 400 메시지로 답한다. 카테고리 등 표에 없는 칸과 빈 문자열은 400.\n\n매달 하기로 한 저축 목록만 다룬다. 저축 실적 집계는 거래·예산 영역이다. 저축은 카테고리·고정지출과 별개이며 PaymentDue를 만들지 않는다. 확정된 저축 amount 합계가 저축 최소 금액이며 지킬 돈 savings_floor는 이보다 작을 수 없다. 추가·확정·금액 변경·중지로 저축 최소 금액이 바뀌면 승인 전 예산 초안은 즉시 만료한다. 승인된 이번 달 예산은 그대로 두며 다음 달부터 새 최소 금액을 사용한다.\n\n자동 후보는 내 계좌끼리 같은 받는 계좌로 매달 같은 날 ±3일·같은 금액이 3달 연속일 때 감지한다. 11/4부터 연결 안 한 계좌로 보낸 이체도 적요에 회원 이름이나 [임시] 저축 단어(적금·예금·저축·청약·파킹·납입)가 있으면 저축 후보로 감지한다. 후보 감지 로직 자체와 이번 달 실제 저축 실적은 이 API 범위 밖이다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/savings.md`",
+        "description": "감지되지 않는 저축을 직접 추가한다. confirmed·manual로 저장하고 confirmedAt=현재 시각, evidenceCount=0. 받는 계좌를 골랐으면 그 계좌 용도를 savings로 표시한다. 두 계좌는 서로 달라야 하며 없는·남의·선택 불가 계좌는 모두 같은 400 메시지로 답한다. 카테고리 등 표에 없는 칸과 빈 문자열은 400.\n\n매달 하기로 한 저축 목록만 다룬다. 저축 실적 집계는 거래·예산 영역이다. 저축은 카테고리·고정지출과 별개이며 PaymentDue를 만들지 않는다. 확정된 저축 amount 합계가 저축 최소 금액이며 지킬 돈 savings_floor는 이보다 작을 수 없다. 추가·확정·금액 변경·중지로 저축 최소 금액이 바뀌면 승인 전 예산 초안은 즉시 만료한다. 승인된 이번 달 예산은 그대로 두며 다음 달부터 새 최소 금액을 사용한다.\n\n자동 후보는 내 계좌끼리 같은 받는 계좌로 매달 같은 날 ±3일·같은 금액이 3달 연속일 때 감지한다. 연결 안 한 계좌로 보낸 이체도 적요에 회원 이름이나 저축 단어(적금·예금·저축·청약·파킹·납입)가 있으면 저축 후보로 감지한다. 후보 감지 로직 자체와 이번 달 실제 저축 실적은 이 API 범위 밖이다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/savings.md`",
         "responses": {
           "201": {
             "description": "생성한 정기 저축 한 건.",
@@ -8285,13 +8500,13 @@
     },
     "/api/budgets/savings/{id}/": {
       "patch": {
-        "summary": "[구현] 정기 저축 수정",
+        "summary": "정기 저축 수정",
         "operationId": "savingsUpdate",
         "tags": [
           "정기 저축"
         ],
         "x-source": "docs/api/savings.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nsuggested·confirmed만 수정할 수 있다. stopped·ignored는 404. 바꿀 칸만 보내며 생략=유지. transferDay/fromAccountId/toAccountId만 null로 비우기 가능. name/amount null, 빈 문자열, 빈 객체는 400.\n\n후보는 보내는·받는 계좌를 바꿀 수 없다(S-11). 현재와 다른 값을 보내면 해당 필드에 400 invalid, 현재와 같은 값은 통과한다. 계좌가 틀렸으면 후보를 무시하고 직접 추가한다. 이름·금액·이체일은 수정 가능. 확정 항목의 받는 계좌를 변경하면 새 계좌에 저축 용도를 붙이고 이미 saving으로 처리한 지난 이체는 보존한다. 두 계좌가 같아지는지는 최종 상태로 검사한다.\n\n매달 하기로 한 저축 목록만 다룬다. 저축 실적 집계는 거래·예산 영역이다. 저축은 카테고리·고정지출과 별개이며 PaymentDue를 만들지 않는다. 확정된 저축 amount 합계가 저축 최소 금액이며 지킬 돈 savings_floor는 이보다 작을 수 없다. 추가·확정·금액 변경·중지로 저축 최소 금액이 바뀌면 승인 전 예산 초안은 즉시 만료한다. 승인된 이번 달 예산은 그대로 두며 다음 달부터 새 최소 금액을 사용한다.\n\n자동 후보는 내 계좌끼리 같은 받는 계좌로 매달 같은 날 ±3일·같은 금액이 3달 연속일 때 감지한다. 11/4부터 연결 안 한 계좌로 보낸 이체도 적요에 회원 이름이나 [임시] 저축 단어(적금·예금·저축·청약·파킹·납입)가 있으면 저축 후보로 감지한다. 후보 감지 로직 자체와 이번 달 실제 저축 실적은 이 API 범위 밖이다.\n\n원본: `docs/api/savings.md`",
+        "description": "suggested·confirmed만 수정할 수 있다. stopped·ignored는 404. 바꿀 칸만 보내며 생략=유지. transferDay/fromAccountId/toAccountId만 null로 비우기 가능. name/amount null, 빈 문자열, 빈 객체는 400.\n\n후보는 보내는·받는 계좌를 바꿀 수 없다(S-11). 현재와 다른 값을 보내면 해당 필드에 400 invalid, 현재와 같은 값은 통과한다. 계좌가 틀렸으면 후보를 무시하고 직접 추가한다. 이름·금액·이체일은 수정 가능. 확정 항목의 받는 계좌를 변경하면 새 계좌에 저축 용도를 붙이고 이미 saving으로 처리한 지난 이체는 보존한다. 두 계좌가 같아지는지는 최종 상태로 검사한다.\n\n매달 하기로 한 저축 목록만 다룬다. 저축 실적 집계는 거래·예산 영역이다. 저축은 카테고리·고정지출과 별개이며 PaymentDue를 만들지 않는다. 확정된 저축 amount 합계가 저축 최소 금액이며 지킬 돈 savings_floor는 이보다 작을 수 없다. 추가·확정·금액 변경·중지로 저축 최소 금액이 바뀌면 승인 전 예산 초안은 즉시 만료한다. 승인된 이번 달 예산은 그대로 두며 다음 달부터 새 최소 금액을 사용한다.\n\n자동 후보는 내 계좌끼리 같은 받는 계좌로 매달 같은 날 ±3일·같은 금액이 3달 연속일 때 감지한다. 연결 안 한 계좌로 보낸 이체도 적요에 회원 이름이나 저축 단어(적금·예금·저축·청약·파킹·납입)가 있으면 저축 후보로 감지한다. 후보 감지 로직 자체와 이번 달 실제 저축 실적은 이 API 범위 밖이다.\n\n원본: `docs/api/savings.md`",
         "responses": {
           "200": {
             "description": "수정된 정기 저축 한 건 전체.",
@@ -8555,13 +8770,13 @@
         "x-implementation-status": "implemented"
       },
       "delete": {
-        "summary": "[구현] 정기 저축 중지",
+        "summary": "정기 저축 중지",
         "operationId": "savingsStop",
         "tags": [
           "정기 저축"
         ],
         "x-source": "docs/api/savings.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nconfirmed 항목을 삭제하지 않고 stopped로 바꾸고 목록·저축 최소 금액에서 제외한다. 이미 stopped이면 재요청도 204. suggested·ignored는 404. 다시 시작 API는 1차에 없으며 직접 추가로 새로 만든다. 받는 계좌의 savings 용도는 유지하며 용도 변경은 계좌 관리에서 한다.\n\n연결 해제 때 함께 중지하기로 선택한 저축도 이 API를 호출한다. 체크하지 않은 저축은 남고 계좌 상태가 disconnected로 표시된다. 저축 최소 금액이 바뀌면 승인 전 예산 초안은 만료하고 승인된 이번 달 예산은 유지한다.\n\n원본: `docs/api/savings.md`",
+        "description": "confirmed 항목을 삭제하지 않고 stopped로 바꾸고 목록·저축 최소 금액에서 제외한다. 이미 stopped이면 재요청도 204. suggested·ignored는 404. 다시 시작 API는 없으며 직접 추가로 새로 만든다. 받는 계좌의 savings 용도는 유지하며 용도 변경은 계좌 관리에서 한다.\n\n연결 해제 때 함께 중지하기로 선택한 저축도 이 API를 호출한다. 체크하지 않은 저축은 남고 계좌 상태가 disconnected로 표시된다. 저축 최소 금액이 바뀌면 승인 전 예산 초안은 만료하고 승인된 이번 달 예산은 유지한다.\n\n원본: `docs/api/savings.md`",
         "responses": {
           "204": {
             "description": "중지 완료 또는 이미 중지됨. 응답 본문 없음."
@@ -8675,13 +8890,13 @@
     },
     "/api/budgets/savings/confirm/": {
       "post": {
-        "summary": "[구현] 정기 저축 후보 확정",
+        "summary": "정기 저축 후보 확정",
         "operationId": "savingsConfirm",
         "tags": [
           "정기 저축"
         ],
         "x-source": "docs/api/savings.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nsuggested → confirmed로 변경하며 이미 confirmed인 것은 그대로 성공한다. 원래 요청 순서를 보장하는 목록이 아니라 처리한 항목을 items로 반환한다. 빈 배열·형식 틀린 ID·없는 ID·남의 ID·선택할 수 없는 상태가 하나라도 있으면 전부 저장하지 않고 400 invalid. 확정 시 confirmedAt을 기록하고 sourceType=detected를 유지한다. 받는 계좌가 있으면 budget_role=savings로 표시하여 고정지출 결제 계좌 선택에서 제외한다. 근거 이체들의 transaction_type을 saving으로 바꿔 소비로 세지 않는다. 새 확정으로 저축 최소 금액이 바뀌면 승인 전 예산 초안이 만료된다. ignored·stopped는 선택 불가.\n\n온보딩은 모든 후보를 개별 선택해야 하며 확정·무시 요청은 서로 다른 요청 번호를 사용한다. 두 요청 중 하나만 성공하면 그 결과는 유지되며 실패한 쪽을 재시도한다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/savings.md`",
+        "description": "suggested → confirmed로 변경하며 이미 confirmed인 것은 그대로 성공한다. 원래 요청 순서를 보장하는 목록이 아니라 처리한 항목을 items로 반환한다. 빈 배열·형식 틀린 ID·없는 ID·남의 ID·선택할 수 없는 상태가 하나라도 있으면 전부 저장하지 않고 400 invalid. 확정 시 confirmedAt을 기록하고 sourceType=detected를 유지한다. 받는 계좌가 있으면 budget_role=savings로 표시하여 고정지출 결제 계좌 선택에서 제외한다. 근거 이체들의 transaction_type을 saving으로 바꿔 소비로 세지 않는다. 새 확정으로 저축 최소 금액이 바뀌면 승인 전 예산 초안이 만료된다. ignored·stopped는 선택 불가.\n\n온보딩은 모든 후보를 개별 선택해야 하며 확정·무시 요청은 서로 다른 요청 번호를 사용한다. 두 요청 중 하나만 성공하면 그 결과는 유지되며 실패한 쪽을 재시도한다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/savings.md`",
         "responses": {
           "200": {
             "description": "확정 처리된 항목들.",
@@ -8868,13 +9083,13 @@
     },
     "/api/budgets/savings/ignore/": {
       "post": {
-        "summary": "[구현] 정기 저축 후보 무시",
+        "summary": "정기 저축 후보 무시",
         "operationId": "savingsIgnore",
         "tags": [
           "정기 저축"
         ],
         "x-source": "docs/api/savings.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nsuggested → ignored로 변경하며 이미 ignored인 것은 그대로 성공한다. 원래 요청 순서를 보장하는 목록이 아니라 처리한 항목을 items로 반환한다. 빈 배열·형식 틀린 ID·없는 ID·남의 ID·선택할 수 없는 상태가 하나라도 있으면 전부 저장하지 않고 400 invalid. 같은 후보를 다시 묻지 않는다. 근거 이체의 거래 유형은 바꾸지 않는다(11/4 PR #80 리뷰): 내 계좌 이체는 이미 own_transfer라 소비·저축 어디에도 세지 않고, 남에게 보낸 이체(transfer)와 사용자가 바꾼 분류는 그대로 둔다. confirmed·stopped는 선택 불가.\n\n온보딩은 모든 후보를 개별 선택해야 하며 확정·무시 요청은 서로 다른 요청 번호를 사용한다. 두 요청 중 하나만 성공하면 그 결과는 유지되며 실패한 쪽을 재시도한다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/savings.md`",
+        "description": "suggested → ignored로 변경하며 이미 ignored인 것은 그대로 성공한다. 원래 요청 순서를 보장하는 목록이 아니라 처리한 항목을 items로 반환한다. 빈 배열·형식 틀린 ID·없는 ID·남의 ID·선택할 수 없는 상태가 하나라도 있으면 전부 저장하지 않고 400 invalid. 같은 후보를 다시 묻지 않는다. 근거 이체의 거래 유형은 바꾸지 않는다: 내 계좌 이체는 이미 own_transfer라 소비·저축 어디에도 세지 않고, 남에게 보낸 이체(transfer)와 사용자가 바꾼 분류는 그대로 둔다. confirmed·stopped는 선택 불가.\n\n온보딩은 모든 후보를 개별 선택해야 하며 확정·무시 요청은 서로 다른 요청 번호를 사용한다. 두 요청 중 하나만 성공하면 그 결과는 유지되며 실패한 쪽을 재시도한다.\n\n선택 Idempotency-Key로 같은 회원·같은 번호·같은 내용이면 첫 성공의 상태 코드와 본문을 그대로 반환한다. 다른 내용이면 409 idempotency_conflict. 실패(4xx·5xx)는 기록하지 않아 입력을 고쳐 같은 번호로 재시도할 수 있다. 이름으로 중복을 판단하지 않는다.\n\n원본: `docs/api/savings.md`",
         "responses": {
           "200": {
             "description": "무시 처리된 항목들.",
@@ -9062,12 +9277,12 @@
     "/api/home/": {
       "get": {
         "operationId": "getHome",
-        "summary": "[구현] 홈 화면 보기",
+        "summary": "홈 화면 보기",
         "tags": [
           "홈"
         ],
         "x-source": "docs/api/home.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n기본 범위: 급여 주기·입출금 잔액·확인할 항목·납부 예정·머니쿠션 알림. budget은 이번 주기 approved 예산이 있을 때만 채우며(초안 제외) 계산은 GET /api/budgets/와 같습니다.\n\n급여 주기는 설정한 급여일에 바뀌며 없는 날짜는 말일입니다. 입금은 월 실수령액의 80% 이상을 기준으로 찾되 내 계좌 이체는 제외합니다. 이번 월급날 7일 전부터 다음 월급날 8일 전까지의 첫 입금을 이번 월급으로, 다음 월급날 7일 전부터의 입금을 미리 온 다음 월급으로 표시합니다.\n\n잔액은 선택된 입출금 계좌(저축 용도 포함)를 합산합니다. disconnected는 제외하며 relogin은 마지막 잔액과 시각을 유지합니다. 부분 조회 실패를 0원으로 대체하지 않습니다.\n\nmustPay는 이번 주기 및 바로 지난 주기의 미납 회차를 dueDate 오름차순·amount 내림차순으로 제공합니다. 출금일 +3일 이후 미확인 건은 needs_review. 카드 고정지출은 카드 청구서에 포함되어 중복 표시하지 않습니다. 출금일 모르는 고정지출은 needsPaydayCount로 안내합니다. 급여일 미입력 시 period=null, mustPay=[].\n\n홈 조회 시 필요한 현재 회차 납부 예정을 멱등하게 생성합니다. 온보딩 이동은 프런트가 auth/me의 onboardingCompleted로 판단하며 이 API 자체는 온보딩 미완료를 막지 않습니다.\n\n원본: `docs/api/home.md`",
+        "description": "기본 범위: 급여 주기·입출금 잔액·확인할 항목·납부 예정·머니쿠션 알림. budget은 이번 주기 approved 예산이 있을 때만 채우며(초안 제외) 계산은 GET /api/budgets/와 같습니다.\n\n급여 주기는 설정한 급여일에 바뀌며 없는 날짜는 말일입니다. 입금은 월 실수령액의 80% 이상을 기준으로 찾되 내 계좌 이체는 제외합니다. 이번 월급날 7일 전부터 다음 월급날 8일 전까지의 첫 입금을 이번 월급으로, 다음 월급날 7일 전부터의 입금을 미리 온 다음 월급으로 표시합니다.\n\n잔액은 선택된 입출금 계좌(저축 용도 포함)를 합산합니다. disconnected는 제외하며 relogin은 마지막 잔액과 시각을 유지합니다. 부분 조회 실패를 0원으로 대체하지 않습니다.\n\nmustPay는 이번 주기 및 바로 지난 주기의 미납 회차를 dueDate 오름차순·amount 내림차순으로 제공합니다. 출금일 +3일 이후 미확인 건은 needs_review. 카드 고정지출은 카드 청구서에 포함되어 중복 표시하지 않습니다. 출금일 모르는 고정지출은 needsPaydayCount로 안내합니다. 급여일 미입력 시 period=null, mustPay=[].\n\n홈 조회 시 필요한 현재 회차 납부 예정을 멱등하게 생성합니다. 온보딩 이동은 프런트가 auth/me의 onboardingCompleted로 판단하며 이 API 자체는 온보딩 미완료를 막지 않습니다.\n\n원본: `docs/api/home.md`",
         "responses": {
           "200": {
             "description": "정상 처리",
@@ -9206,7 +9421,7 @@
     "/api/chat/conversations/{id}/": {
       "get": {
         "operationId": "getConversation",
-        "summary": "[구현] 이전 대화 보기",
+        "summary": "이전 대화 보기",
         "tags": [
           "통합 챗봇"
         ],
@@ -9223,7 +9438,7 @@
             "description": "UUID. 없는 항목·남의 항목·형식 오류는 모두 404."
           }
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n메시지는 오래된 순. active_agent·slots 내부 상태는 응답하지 않습니다. 화면이 기억한 conversationId로 조회하고 없거나 404이면 새 대화로 시작합니다. 대화 목록 API는 2차이며 페이지 나누기는 미정입니다.\n\n원본: `docs/api/chat.md`",
+        "description": "메시지는 오래된 순. active_agent·slots 내부 상태는 응답하지 않습니다. 화면이 기억한 conversationId로 조회하고 없거나 404이면 새 대화로 시작합니다.\n\n원본: `docs/api/chat.md`",
         "responses": {
           "200": {
             "description": "정상 처리",
@@ -9323,12 +9538,12 @@
     "/api/chat/messages/": {
       "post": {
         "operationId": "sendChatMessage",
-        "summary": "[구현] 챗봇에 메시지 보내기",
+        "summary": "챗봇에 메시지 보내기",
         "tags": [
           "통합 챗봇"
         ],
         "x-source": "docs/api/chat.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\ntext와 choice 중 하나를 보낸다. 선택지 객체는 최신 {value,turn}을 검수한다. router의 budgetContext는 choice=\"budget\"과 함께 본인 기준 예산·모드를 전달한다. 예산 조정의 계산·검수·저장은 서버가 수행하고 content.budgetAdjustment로 질문·비교·변경안을 반환한다. 비교와 미리보기 선택만으로 승인하지 않는다. LLM은 대화 잠금 밖에서 호출하고, rev 검수 뒤 제안·작업·메시지를 원자 저장한다. legacy 응답 계약은 유지한다. 실제 자유 대화는 CHAT_ENGINE=router / CHAT_LLM=live 및 정책·자료 연결이 필요하다.\n\n원본: `docs/api/chat.md`",
+        "description": "text와 choice 중 하나를 보낸다. 선택지 객체는 최신 {value,turn}을 검수한다. router의 budgetContext는 choice=\"budget\"과 함께 본인 기준 예산·모드를 전달한다. 예산 조정의 계산·검수·저장은 서버가 수행하고 content.budgetAdjustment로 질문·비교·변경안을 반환한다. 비교와 미리보기 선택만으로 승인하지 않는다. LLM은 대화 잠금 밖에서 호출하고, rev 검수 뒤 제안·작업·메시지를 원자 저장한다. legacy 응답 계약은 유지한다. 실제 자유 대화는 CHAT_ENGINE=router / CHAT_LLM=live 및 정책·자료 연결이 필요하다.\n\n원본: `docs/api/chat.md`",
         "requestBody": {
           "required": true,
           "content": {
@@ -9495,12 +9710,12 @@
       },
       "get": {
         "operationId": "getChatEngine",
-        "summary": "[구현] 챗봇 기능 버튼 보기",
+        "summary": "챗봇 기능 버튼 보기",
         "tags": [
           "통합 챗봇"
         ],
         "x-source": "docs/api/chat.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n저장 없이 현재 엔진과 서버가 제공하는 기능 버튼을 반환한다. router에서 예산 조정 카드를 연결하며 legacy는 이전 안내 흐름이다.\n\n원본: `docs/api/chat.md`",
+        "description": "저장 없이 현재 엔진과 서버가 제공하는 기능 버튼을 반환한다. router에서 예산 조정 카드를 연결하며 legacy는 이전 안내 흐름이다.\n\n원본: `docs/api/chat.md`",
         "responses": {
           "200": {
             "description": "엔진과 기능 버튼",
@@ -9546,7 +9761,7 @@
     "/api/tasks/{id}/": {
       "get": {
         "operationId": "getTask",
-        "summary": "[구현] 오래 걸리는 작업 진행 확인",
+        "summary": "오래 걸리는 작업 진행 확인",
         "tags": [
           "통합 챗봇"
         ],
@@ -9563,7 +9778,7 @@
             "description": "UUID. 없는 항목·남의 항목·형식 오류는 모두 404."
           }
         ],
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n회원 본인의 공용 async_task를 조회한다. queued·running이면 재조회, succeeded·failed·canceled이면 중단한다. 시작 API는 1차로 요청 안에서 작업을 끝내므로 처음부터 succeeded일 수 있다. result는 succeeded일 때, error는 failed일 때만 객체이며 나머지는 null이다. finance_sync 결과는 FinanceSyncResult를 참고한다. 기관 전부 실패해도 실행을 마치면 작업은 succeeded이고 기관별 실패는 result.items[].error에 있다. 공용 실패 코드는 server_error·stale. 10분 넘게 멈춘 작업은 다음 시작 요청 때 failed/stale로 닫는다. 예산 조정안의 조건 변경은 succeeded를 바꾸지 않고 승인 단계에서 만료를 알린다. 조회 간격·최대 대기 시간·작업 취소 API는 결정 후다.\n\n원본: `docs/api/chat.md`",
+        "description": "회원 본인의 공용 async_task를 조회한다. queued·running이면 재조회, succeeded·failed·canceled이면 중단한다. 예산 추천 · 조정은 요청 안에서 끝나 처음부터 succeeded일 수 있고, 금융 다시 불러오기 · 카드 첫 연결은 서버 뒤에서 실행되어 queued·running으로 시작한다. result는 succeeded일 때, error는 failed일 때만 객체이며 나머지는 null이다. finance_sync 결과는 FinanceSyncResult를 참고한다. 기관 전부 실패해도 실행을 마치면 작업은 succeeded이고 기관별 실패는 result.items[].error에 있다. 공용 실패 코드는 server_error·stale. 10분 넘게 멈춘 작업은 다음 시작 요청 때 failed/stale로 닫는다. 예산 조정안의 조건 변경은 succeeded를 바꾸지 않고 승인 단계에서 만료를 알린다.\n\n원본: `docs/api/chat.md`",
         "responses": {
           "200": {
             "description": "정상 처리",
@@ -9727,13 +9942,13 @@
     },
     "/api/budgets/ai-consent/": {
       "get": {
-        "summary": "[구현] 예산 AI 외부 전송 동의 보기",
+        "summary": "예산 AI 외부 전송 동의 보기",
         "operationId": "budgetAIConsentGet",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n로그인 회원 자신의 선택 동의 상태와 현재 원문·버전·해시를 반환한다. 금융 조회 동의와 별개다. available=false이면 새 동의 UI를 숨긴다. 기존 활성 동의가 있으면 철회 UI만 유지한다.\n\n원본: `docs/api/budgets.md`",
+        "description": "로그인 회원 자신의 선택 동의 상태와 현재 원문·버전·해시를 반환한다. 금융 조회 동의와 별개다. available=false이면 새 동의 UI를 숨긴다. 기존 활성 동의가 있으면 철회 UI만 유지한다.\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "200": {
             "description": "현재 동의 상태",
@@ -9820,13 +10035,13 @@
         "x-implementation-status": "implemented"
       },
       "put": {
-        "summary": "[구현] 예산 AI 외부 전송 동의 저장",
+        "summary": "예산 AI 외부 전송 동의 저장",
         "operationId": "budgetAIConsentPut",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n사용자가 직접 체크한 현재 문서 버전·해시를 저장한다. 기본 체크는 해제이며 저장만으로 외부 전송을 시작하지 않는다. 서버 기능이 비활성이면 409 budget_ai_unavailable이며 기록을 생성하지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "description": "사용자가 직접 체크한 현재 문서 버전·해시를 저장한다. 기본 체크는 해제이며 저장만으로 외부 전송을 시작하지 않는다. 서버 기능이 비활성이면 409 budget_ai_unavailable이며 기록을 생성하지 않는다.\n\n원본: `docs/api/budgets.md`",
         "requestBody": {
           "required": true,
           "content": {
@@ -9983,13 +10198,13 @@
         ]
       },
       "delete": {
-        "summary": "[구현] 예산 AI 외부 전송 동의 철회",
+        "summary": "예산 AI 외부 전송 동의 철회",
         "operationId": "budgetAIConsentDelete",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n예산 AI 동의만 철회한다. 금융자료·최소금액·잠금·승인 예산은 삭제하거나 변경하지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "description": "예산 AI 동의만 철회한다. 금융자료·최소금액·잠금·승인 예산은 삭제하거나 변경하지 않는다.\n\n원본: `docs/api/budgets.md`",
         "requestBody": {
           "required": true,
           "content": {
@@ -10115,13 +10330,13 @@
     },
     "/api/budgets/protect/": {
       "get": {
-        "summary": "[구현] 지킬 돈 보기",
+        "summary": "지킬 돈 보기",
         "operationId": "protectGet",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nP-01~P-11. missing은 housingType·takeHomeIncome·payday 순서. missing이면 base·recommended·blocked는 null, savingsMin은 계속 계산한다. fixedTotal은 결제 수단과 무관한 확정 고정지출 + 상환 중 대출 + 카드 선차감이다. available은 음수도 그대로 반환한다. 쿠션 목표는 실수령액 × 3이며 실수령액이 없으면 null. 잔액을 모르면 쿠션 필수. blocked도 200이다. 자취 비율은 생활비55·저축30·여윳돈5·쿠션10, 본가는45·40·5·10이다. 생활비·저축은 1만원 반올림, 쿠션은 내림, 자투리는 여윳돈. 확정 정기 저축 합계가 비율 저축보다 크면 최소 저축을 먼저 떼고 생활비:여윳돈:쿠션 비율로 재배분한다. 반올림 초과는 생활비에서 빼고, 필수 쿠션이 0이면 여윳돈→생활비에서 최대 1만원, 그래도 0일 때만 최소를 넘는 저축에서 가져온다. 카드 첫 청구서 선차감은 관리 대상 카드가 있는 카드사마다 계산한다(카드사 첫 청구서 총액 − 그 카드사 관리 대상 카드로 쓴 돈 − 그 카드사 카드 고정지출, 관리 대상 아닌 카드 몫은 같이 뗀다). 한 카드사라도 자료 미확인이면 0원으로 치지 않고 base·recommended는 null, blocked = {reason: card_bill_pending, shortfall: null}, cardPending에 그 카드사의 관리 대상 카드와 이유를 담는다. 청구 이력·카드 거래가 다 들어왔는지는 sync_run(card_bill_list·card_approval_list, success)의 이어진 조회 기간으로만 판단하고, 기준일은 마지막으로 다 불러온 날이다. 카드로 내는 확정 고정지출은 선차감에서 빼되 고정지출 하나는 카드 전체에서 한 번만 뺀다(이번 주기 실제 결제 카드 우선, 없으면 등록한 결제 카드, P-04·P-12).\n\n원본: `docs/api/budgets.md`",
+        "description": "P-01~P-11. missing은 housingType·takeHomeIncome·payday 순서. missing이면 base·recommended·blocked는 null, savingsMin은 계속 계산한다. fixedTotal은 결제 수단과 무관한 확정 고정지출 + 상환 중 대출 + 카드 선차감이다. available은 음수도 그대로 반환한다. 쿠션 목표는 실수령액 × 3이며 실수령액이 없으면 null. 잔액을 모르면 쿠션 필수. blocked도 200이다. 자취 비율은 생활비55·저축30·여윳돈5·쿠션10, 본가는45·40·5·10이다. 생활비·저축은 1만원 반올림, 쿠션은 내림, 자투리는 여윳돈. 확정 정기 저축 합계가 비율 저축보다 크면 최소 저축을 먼저 떼고 생활비:여윳돈:쿠션 비율로 재배분한다. 반올림 초과는 생활비에서 빼고, 필수 쿠션이 0이면 여윳돈→생활비에서 최대 1만원, 그래도 0일 때만 최소를 넘는 저축에서 가져온다. 카드 첫 청구서 선차감은 관리 대상 카드가 있는 카드사마다 계산한다(카드사 첫 청구서 총액 − 그 카드사 관리 대상 카드로 쓴 돈 − 그 카드사 카드 고정지출, 관리 대상 아닌 카드 몫은 같이 뗀다). 한 카드사라도 자료 미확인이면 0원으로 치지 않고 base·recommended는 null, blocked = {reason: card_bill_pending, shortfall: null}, cardPending에 그 카드사의 관리 대상 카드와 이유를 담는다. 청구 이력·카드 거래가 다 들어왔는지는 sync_run(card_bill_list·card_approval_list, success)의 이어진 조회 기간으로만 판단하고, 기준일은 마지막으로 다 불러온 날이다. 카드로 내는 확정 고정지출은 선차감에서 빼되 고정지출 하나는 카드 전체에서 한 번만 뺀다(이번 주기 실제 결제 카드 우선, 없으면 등록한 결제 카드, P-04·P-12).\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "200": {
             "description": "필수 정보·추천·부족 상태·저장 값",
@@ -10305,13 +10520,13 @@
         "x-implementation-status": "implemented"
       },
       "put": {
-        "summary": "[구현] 지킬 돈 저장",
+        "summary": "지킬 돈 저장",
         "operationId": "protectPut",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n검사 순서: missing → blocked → 세 금액의 정수·0 이상 및 updateApprovedBudget boolean·알 수 없는 칸 → 저축 최소 금액 → 필수 쿠션 0 금지 → 합계 ≤ available. 앞 두 조건은 409 not_ready(card_bill_pending이면 \"카드 청구서를 아직 확인하지 못했어요. 카드 내역을 다시 불러온 뒤 시도해 주세요.\"), 나머지는 400 invalid. 합계 초과는 fields.nonFieldErrors. 같은 값이면 수정 시각·초안 그대로. 변경 시 living_budget·savings_floor·cushion_monthly·cushion_target 저장과 이 회원의 draft·validated 만료를 같은 트랜잭션에서 수행한다. updateApprovedBudget 기본 true: 생활비가 그대로이면 합계 검증 후 승인 예산의 저축·쿠션을 갱신할 수 있다. 생활비가 바뀌어 이번 주기 자물쇠 때문에 추천이 막히면(자물쇠를 빼면 추천 가능) 자물쇠를 풀고 locksReleased에 담는다(P-13, 변경 횟수는 늘리지 않음). 월급 저장 후 새 조건 검토는 updateApprovedBudget=false: 설정만 저장하고 승인 예산 금액·쿠션 기록·카테고리 잠금을 유지한다. 이 경우 approvedBudgetUpdated는 승인 예산이 있으면 false, 없으면 null이며 새 안의 별도 승인이 필요하다. 이미 적립한 쿠션 등 기존 금액 보호 검증은 동일하게 적용한다.\n\n원본: `docs/api/budgets.md`",
+        "description": "검사 순서: missing → blocked → 세 금액의 정수·0 이상 및 updateApprovedBudget boolean·알 수 없는 칸 → 저축 최소 금액 → 필수 쿠션 0 금지 → 합계 ≤ available. 앞 두 조건은 409 not_ready(card_bill_pending이면 \"카드 청구서를 아직 확인하지 못했어요. 카드 내역을 다시 불러온 뒤 시도해 주세요.\"), 나머지는 400 invalid. 합계 초과는 fields.nonFieldErrors. 같은 값이면 수정 시각·초안 그대로. 변경 시 living_budget·savings_floor·cushion_monthly·cushion_target 저장과 이 회원의 draft·validated 만료를 같은 트랜잭션에서 수행한다. updateApprovedBudget 기본 true: 생활비가 그대로이면 합계 검증 후 승인 예산의 저축·쿠션을 갱신할 수 있다. 생활비가 바뀌어 이번 주기 자물쇠 때문에 추천이 막히면(자물쇠를 빼면 추천 가능) 자물쇠를 풀고 locksReleased에 담는다(P-13, 변경 횟수는 늘리지 않음). 월급 저장 후 새 조건 검토는 updateApprovedBudget=false: 설정만 저장하고 승인 예산 금액·쿠션 기록·카테고리 잠금을 유지한다. 이 경우 approvedBudgetUpdated는 승인 예산이 있으면 false, 없으면 null이며 새 안의 별도 승인이 필요하다. 이미 적립한 쿠션 등 기존 금액 보호 검증은 동일하게 적용한다.\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "200": {
             "description": "방금 저장한 saved 포함",
@@ -10498,16 +10713,16 @@
     },
     "/api/budgets/recommend/": {
       "post": {
-        "summary": "[구현] 추천 예산 만들기",
+        "summary": "추천 예산 만들기",
         "operationId": "budgetRecommend",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n지킬 돈 missing·blocked(카드 청구서 미확인 포함)·미저장·현재 조건과 안 맞는 저장 값은 작업 생성 전 409 not_ready. 이 회원의 budget_recommend queued·running 작업이 있으면 재사용한다. 기타는 잠긴 금액, 없으면 최소 금액, 없으면 0을 떼고 배분 대상 카테고리(주거·통신·여행·숙박 제외, R-13)에 배분한다. 예전에 걸어 둔 두 카테고리의 최소 금액·자물쇠는 DB에 두되 계산에서 뺀다. 실제 자물쇠는 입력액을 유지하고 잠기지 않은 최소액은 5천 원 단위로 올림한다. 저장한 category_targets는 최소액·잠금과 별도인 출발 금액으로 반영한다. 기본 1만원, 필요 시 5천 원 단위로 계산·저장하며 남은 잔액은 unallocated로 여윳돈에 남긴다. 여윳돈은 별도 BudgetItem이 아니다. proposed이면 validated 예산 및 항목을 만들고 같은 주기 이전 draft·validated를 만료시킨다. 승인 예산은 유지한다. task.result는 BudgetRecommendationResult: infeasible은 작업 succeeded이며 minimums_over_living, lock_below_minimum, locks_mismatch_living, target_conflict로 안내한다. target_conflict는 잠금·최소액·단위·생활비·잘못된 목표를 명시하고 목표 자동 감액·프로필 수정 없이 재확인한다. 서버 결과 검증 실패만 failed / engine_check_failed. 입력 해시에 자물쇠는 포함하지 않고 input_snapshot에 기록한다. 이번 주기에 예산(validated·approved)이 하나도 없고 자물쇠 때문에 추천이 막히면(자물쇠를 빼면 막히지 않을 때) 추천 전에 이번 주기 자물쇠를 풀고 result.locksReleased에 담는다 — 자물쇠는 예산 화면에서만 풀 수 있어 막다른 길이 되기 때문 (P-13 ②). 바꾼 횟수는 늘리지 않는다. 현재 임시 엔진은 temp-fallback-targets-2, 정책은 2026-11-05-targets-units이며 실제 ML/A·B 정책 연결을 뜻하지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "description": "지킬 돈 missing·blocked(카드 청구서 미확인 포함)·미저장·현재 조건과 안 맞는 저장 값은 작업 생성 전 409 not_ready. 이 회원의 budget_recommend queued·running 작업이 있으면 재사용한다. 기타는 잠긴 금액, 없으면 최소 금액, 없으면 0을 떼고 배분 대상 카테고리(주거·통신·여행·숙박 제외, R-13)에 배분한다. 예전에 걸어 둔 두 카테고리의 최소 금액·자물쇠는 DB에 두되 계산에서 뺀다. 실제 자물쇠는 입력액을 유지하고 잠기지 않은 최소액은 5천 원 단위로 올림한다. 저장한 category_targets는 최소액·잠금과 별도인 출발 금액으로 반영한다. 기본 1만원, 필요 시 5천 원 단위로 계산·저장하며 남은 잔액은 unallocated로 여윳돈에 남긴다. 여윳돈은 별도 BudgetItem이 아니다. proposed이면 validated 예산 및 항목을 만들고 같은 주기 이전 draft·validated를 만료시킨다. 승인 예산은 유지한다. task.result는 BudgetRecommendationResult: infeasible은 작업 succeeded이며 minimums_over_living, lock_below_minimum, locks_mismatch_living, target_conflict로 안내한다. target_conflict는 잠금·최소액·단위·생활비·잘못된 목표를 명시하고 목표 자동 감액·프로필 수정 없이 재확인한다. 서버 결과 검증 실패만 failed / engine_check_failed. 입력 해시에 자물쇠는 포함하지 않고 input_snapshot에 기록한다. 이번 주기에 예산(validated·approved)이 하나도 없고 자물쇠 때문에 추천이 막히면(자물쇠를 빼면 막히지 않을 때) 추천 전에 이번 주기 자물쇠를 풀고 result.locksReleased에 담는다 — 자물쇠는 예산 화면에서만 풀 수 있어 막다른 길이 되기 때문 (P-13 ②). 바꾼 횟수는 늘리지 않는다. 현재 임시 엔진은 temp-fallback-targets-2, 정책은 2026-11-05-targets-units이며 실제 ML/A·B 정책 연결을 뜻하지 않는다.\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "202": {
-            "description": "작업 번호. 1차는 요청 안에서 실행되어 succeeded 또는 failed일 수 있다.",
+            "description": "작업 번호. 추천은 요청 안에서 끝까지 계산하므로 응답이 바로 succeeded 또는 failed일 수 있다.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10652,13 +10867,13 @@
     },
     "/api/budgets/": {
       "get": {
-        "summary": "[구현] 카테고리 예산 보기",
+        "summary": "카테고리 예산 보기",
         "operationId": "budgetList",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n급여일이 없으면 cycle=null이고 unclassifiedCount는 오늘까지 전체 기간을 센다. 예산이 없으면 budget·split·living·overspend·nag=null, categories=[], unclassifiedCount는 계산한다. 쓴 돈은 거래 목록의 같은 구매 제외·취소 차감 기준을 재사용하고 소비 중 funding=fixed는 쓴 돈에서 뺀다. unclassifiedCount는 고정비 소비도 포함한다. 쓴 돈 기간은 주기 시작일~오늘(홈·채팅과 같음). 미분류·기타도 living.spent에 포함하고 예산 밖 카테고리(주거·통신·여행·숙박) 지출은 living.spent에서 뺀다(R-13). outOfBudget은 그 빼낸 지출을 안내용으로 준다(예산이 없으면 null). budget.engineVersion이 temp-로 시작하면 화면에 테스트 추천 표시. categories는 배분 대상 카테고리 + 기타만 display_order 순서로 표시한다. 초과액은 여윳돈으로만 충당한다. salaryConfirmed는 홈 salaryState=received. nag는 보호 카테고리(주거·통신, 교통·차량) 외 자물쇠 changeCount≥3 또는 이번 주기 approved_at이 있는 예산≥3일 때 표시한다. 일반 validated 조회에서는 미승인 파생 조정안(base_budget 또는 budget_adjust 작업)을 제외한다. task=NULL인 일반 추천 초안은 유지하고, 승인된 파생 예산은 정상 표시한다.\n\n원본: `docs/api/budgets.md`",
+        "description": "급여일이 없으면 cycle=null이고 unclassifiedCount는 오늘까지 전체 기간을 센다. 예산이 없으면 budget·split·living·overspend·nag=null, categories=[], unclassifiedCount는 계산한다. 쓴 돈은 거래 목록의 같은 구매 제외·취소 차감 기준을 재사용하고 소비 중 funding=fixed는 쓴 돈에서 뺀다. unclassifiedCount는 고정비 소비도 포함한다. 쓴 돈 기간은 주기 시작일~오늘(홈·채팅과 같음). 미분류·기타도 living.spent에 포함하고 예산 밖 카테고리(주거·통신·여행·숙박) 지출은 living.spent에서 뺀다(R-13). outOfBudget은 그 빼낸 지출을 안내용으로 준다(예산이 없으면 null). budget.engineVersion이 temp-로 시작하면 화면에 테스트 추천 표시. categories는 배분 대상 카테고리 + 기타만 display_order 순서로 표시한다. 초과액은 여윳돈으로만 충당한다. salaryConfirmed는 홈 salaryState=received. nag는 보호 카테고리(주거·통신, 교통·차량) 외 자물쇠 changeCount≥3 또는 이번 주기 approved_at이 있는 예산≥3일 때 표시한다. 일반 validated 조회에서는 미승인 파생 조정안(base_budget 또는 budget_adjust 작업)을 제외한다. task=NULL인 일반 추천 초안은 유지하고, 승인된 파생 예산은 정상 표시한다.\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "200": {
             "description": "이번 주기 validated 초안 우선, 없으면 approved",
@@ -10859,13 +11074,13 @@
     },
     "/api/budgets/{id}/approve/": {
       "post": {
-        "summary": "[구현] 예산 승인",
+        "summary": "예산 승인",
         "operationId": "budgetApprove",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n이번 주기에 이미 approved이면 성공으로 현재 상태를 반환한다. 지난 주기 approved·superseded·rejected·draft는 409 not_ready(지난 예산은 승인할 수 없어요). 카드 첫 청구서 선차감은 다시 계산하지 않고 초안 input_snapshot에 저장한 값으로 검사한다(입력 해시에는 선차감 금액 대신 대상 카드 목록만 포함). expired, validated의 주기가 지났거나, 지금의 지킬 돈이 쓸 수 없는 상태(필수 쿠션인데 쿠션 0원 · 저축 최소 미달 · 합계 초과 · missing · blocked)이거나, 입력 해시가 다르거나, 초안의 계산 규칙 버전(policy_version)이 지금과 다르면 409 expired: 조건이 바뀌어서 다시 추천받아야 해요. 발견한 만료 상태는 409에도 저장하고 실패 요청 번호는 기록하지 않는다. 승인 시 같은 주기 approved를 superseded로 바꾸고 이 예산의 approved_at·approval_key를 저장한다. auth.onboardingCompleted는 approved_at이 있는 예산 존재 여부로 계산된다. 자물쇠는 만료 해시에서 제외한다. INITIAL_ADJUSTMENT 파생 조정안은 공통 조정 승인 검수로 분기하며 keepForNextCycle을 받는다. 그 경우 응답은 {adjustment,budget}. NORMAL_ADJUSTMENT는 proposals 승인 경로만 허용한다. 일반 추천은 기존 빈 본문·예산 화면 응답을 유지한다.\n\n원본: `docs/api/budgets.md`",
+        "description": "이번 주기에 이미 approved이면 성공으로 현재 상태를 반환한다. 지난 주기 approved·superseded·rejected·draft는 409 not_ready(지난 예산은 승인할 수 없어요). 카드 첫 청구서 선차감은 다시 계산하지 않고 초안 input_snapshot에 저장한 값으로 검사한다(입력 해시에는 선차감 금액 대신 대상 카드 목록만 포함). expired, validated의 주기가 지났거나, 지금의 지킬 돈이 쓸 수 없는 상태(필수 쿠션인데 쿠션 0원 · 저축 최소 미달 · 합계 초과 · missing · blocked)이거나, 입력 해시가 다르거나, 초안의 계산 규칙 버전(policy_version)이 지금과 다르면 409 expired: 조건이 바뀌어서 다시 추천받아야 해요. 발견한 만료 상태는 409에도 저장하고 실패 요청 번호는 기록하지 않는다. 승인 시 같은 주기 approved를 superseded로 바꾸고 이 예산의 approved_at·approval_key를 저장한다. auth.onboardingCompleted는 approved_at이 있는 예산 존재 여부로 계산된다. 자물쇠는 만료 해시에서 제외한다. INITIAL_ADJUSTMENT 파생 조정안은 공통 조정 승인 검수로 분기하며 keepForNextCycle을 받는다. 그 경우 응답은 {adjustment,budget}. NORMAL_ADJUSTMENT는 proposals 승인 경로만 허용한다. 일반 추천은 기존 빈 본문·예산 화면 응답을 유지한다.\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "200": {
             "description": "승인된 예산의 현재 화면 데이터",
@@ -11178,12 +11393,12 @@
     "/api/budgets/proposals/{id}/": {
       "get": {
         "operationId": "getBudgetAdjustment",
-        "summary": "[구현] 예산 조정안 현재 카드 보기",
+        "summary": "예산 조정안 현재 카드 보기",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n본인 파생 Budget과 budget_adjust 작업의 연결·실제 승인 근거를 확인한다. GET은 저장하지 않는다. savedRef는 승인된 Budget.task/approved_at으로만 확인하고 이후 superseded여도 저장 사실을 유지한다. 미승인 제안은 일반 예산 조회에 적용하지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "description": "본인 파생 Budget과 budget_adjust 작업의 연결·실제 승인 근거를 확인한다. GET은 저장하지 않는다. savedRef는 승인된 Budget.task/approved_at으로만 확인하고 이후 superseded여도 저장 사실을 유지한다. 미승인 제안은 일반 예산 조회에 적용하지 않는다.\n\n원본: `docs/api/budgets.md`",
         "parameters": [
           {
             "name": "id",
@@ -11297,12 +11512,12 @@
     "/api/budgets/proposals/{id}/approve/": {
       "post": {
         "operationId": "approveBudgetAdjustment",
-        "summary": "[구현] 월중 예산 조정안 승인",
+        "summary": "월중 예산 조정안 승인",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nNORMAL_ADJUSTMENT만. 본인·주기·모드·최신 지출·잠금·최소액·정책·가용액·금액 단위·저장된 이동 원장을 재검수한다. 카드 금액을 바꿔 저장하지 않으며 바뀐 조건은 만료를 보존하고409 expired. 부분 반영은 대화에서 명시적으로 선택한 뒤 승인한다. keepForNextCycle은 직접 요청한 항목의 실제 최종액만 유지하고 자동 재원은 고정하지 않는다. 같은 키·본문은 중복 반영하지 않고 이미 확정한 유지 선택을 바꾸면 새 키여도409 idempotency_conflict. 응답 불명확 시 동일 키·본문으로 재시도한다.\n\n원본: `docs/api/budgets.md`",
+        "description": "NORMAL_ADJUSTMENT만. 본인·주기·모드·최신 지출·잠금·최소액·정책·가용액·금액 단위·저장된 이동 원장을 재검수한다. 카드 금액을 바꿔 저장하지 않으며 바뀐 조건은 만료를 보존하고409 expired. 부분 반영은 대화에서 명시적으로 선택한 뒤 승인한다. keepForNextCycle은 직접 요청한 항목의 실제 최종액만 유지하고 자동 재원은 고정하지 않는다. 같은 키·본문은 중복 반영하지 않고 이미 확정한 유지 선택을 바꾸면 새 키여도409 idempotency_conflict. 응답 불명확 시 동일 키·본문으로 재시도한다.\n\n원본: `docs/api/budgets.md`",
         "parameters": [
           {
             "name": "id",
@@ -11468,13 +11683,13 @@
     },
     "/api/budgets/adjustment-ai-consent/": {
       "get": {
-        "summary": "[구현] 예산 조정 AI 외부 전송 동의 보기",
+        "summary": "예산 조정 AI 외부 전송 동의 보기",
         "operationId": "budgetAdjustmentConsentGet",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n로그인 회원 자신의 예산 조정 AI 동의 상태(purpose=budget_adjust_ai)와 조정 동의 문서·건강 요약 동의 문서를 반환한다. 예산 설계 동의(budget_ai)와 별개다. 응답 모양은 GET /api/budgets/ai-consent/와 같다.\n\n원본: `docs/api/budgets.md`",
+        "description": "로그인 회원 자신의 예산 조정 AI 동의 상태(purpose=budget_adjust_ai)와 조정 동의 문서·건강 요약 동의 문서를 반환한다. 예산 설계 동의(budget_ai)와 별개다. 응답 모양은 GET /api/budgets/ai-consent/와 같다.\n\n원본: `docs/api/budgets.md`",
         "responses": {
           "200": {
             "description": "현재 동의 상태",
@@ -11561,13 +11776,13 @@
         "x-implementation-status": "implemented"
       },
       "put": {
-        "summary": "[구현] 예산 조정 AI 외부 전송 동의 저장",
+        "summary": "예산 조정 AI 외부 전송 동의 저장",
         "operationId": "budgetAdjustmentConsentPut",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\nbudget_adjust_ai·budget_adjust_ai_health 두 문서를 각각 직접 동의한 경우만 저장한다. 문서 버전·해시가 현재 문서와 다르면 409 document_outdated. 실제 LLM 채팅이 꺼져 있으면(available=false) 409 budget_ai_unavailable. 설계 동의를 바꾸지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "description": "budget_adjust_ai·budget_adjust_ai_health 두 문서를 각각 직접 동의한 경우만 저장한다. 문서 버전·해시가 현재 문서와 다르면 409 document_outdated. 실제 LLM 채팅이 꺼져 있으면(available=false) 409 budget_ai_unavailable. 설계 동의를 바꾸지 않는다.\n\n원본: `docs/api/budgets.md`",
         "requestBody": {
           "required": true,
           "content": {
@@ -11724,13 +11939,13 @@
         ]
       },
       "delete": {
-        "summary": "[구현] 예산 조정 AI 외부 전송 동의 철회",
+        "summary": "예산 조정 AI 외부 전송 동의 철회",
         "operationId": "budgetAdjustmentConsentDelete",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/budgets.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n{confirm: true}로 budget_adjust_ai·budget_adjust_ai_health 활성 동의를 함께 철회한다. 다음 외부 조정 호출부터 막고(403 budget_adjust_consent_required), 승인 예산·설정·설계 동의는 바꾸지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "description": "{confirm: true}로 budget_adjust_ai·budget_adjust_ai_health 활성 동의를 함께 철회한다. 다음 외부 조정 호출부터 막고(403 budget_adjust_consent_required), 승인 예산·설정·설계 동의는 바꾸지 않는다.\n\n원본: `docs/api/budgets.md`",
         "requestBody": {
           "required": true,
           "content": {
@@ -11856,13 +12071,13 @@
     },
     "/api/budgets/salary/": {
       "get": {
-        "summary": "[구현] 월급·급여일 조회",
+        "summary": "월급·급여일 조회",
         "operationId": "salaryGet",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/salary.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n로그인한 본인의 월 실수령액·급여일·변경 예약을 조회한다. 금융 조회 동의는 필요 없다. 적용일이 지난 예약은 현재값으로 활성화한다.\n\n원본: `docs/api/salary.md`",
+        "description": "로그인한 본인의 월 실수령액·급여일·변경 예약을 조회한다. 금융 조회 동의는 필요 없다. 적용일이 지난 예약은 현재값으로 활성화한다.\n\n원본: `docs/api/salary.md`",
         "responses": {
           "200": {
             "description": "현재 적용 값과 변경 예약. 미등록 값은 null이며 조회로 프로필을 만들지 않는다.",
@@ -11895,13 +12110,13 @@
         "x-implementation-status": "implemented"
       },
       "put": {
-        "summary": "[구현] 월급·급여일 저장",
+        "summary": "월급·급여일 저장",
         "operationId": "salaryPut",
         "tags": [
           "예산"
         ],
         "x-source": "docs/api/salary.md",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n두 필수 값을 묶어 저장한다. 숫자 문자열·소수·boolean·알 수 없는 칸은 거절한다. 기존 승인 이후 값 변경에는 applyFrom이 필요하다. 이번 주기에 받은 월급 기준이 있으면 keepIncomeBasis를 확인한다. 변경 시 본인 미승인 초안만 만료하고 추천·승인은 자동 실행하지 않는다. 동일값 재저장은 수정시각과 초안을 유지한다. 챗봇의 현재값 수정은 preserveUnchangedSchedules=true로 변경하지 않은 항목의 예약을 보존한다. 실제 변경한 항목의 즉시 적용은 그 항목의 기존 예약을 취소한다. 기존 기본false에서는 현재값과 applyFrom을 함께 보내 예약을 명시적으로 취소할 수 있다.\n\n원본: `docs/api/salary.md`",
+        "description": "두 필수 값을 묶어 저장한다. 숫자 문자열·소수·boolean·알 수 없는 칸은 거절한다. 기존 승인 이후 값 변경에는 applyFrom이 필요하다. 이번 주기에 받은 월급 기준이 있으면 keepIncomeBasis를 확인한다. 변경 시 본인 미승인 초안만 만료하고 추천·승인은 자동 실행하지 않는다. 동일값 재저장은 수정시각과 초안을 유지한다. 챗봇의 현재값 수정은 preserveUnchangedSchedules=true로 변경하지 않은 항목의 예약을 보존한다. 실제 변경한 항목의 즉시 적용은 그 항목의 기존 예약을 취소한다. 기존 기본false에서는 현재값과 applyFrom을 함께 보내 예약을 명시적으로 취소할 수 있다.\n\n원본: `docs/api/salary.md`",
         "responses": {
           "200": {
             "description": "현재 적용 값과 변경 예약. 미등록 값은 null이며 조회로 프로필을 만들지 않는다.",
@@ -12103,8 +12318,8 @@
           }
         },
         "operationId": "getSalaryBudgetReview",
-        "summary": "[구현] 월급 증가분과 보관한 예산 요청 검토",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n최신 승인 예산과 이번 주기 유효 급여를 비교한다. 대화 ID가 있으면 본인 대화의 요청·기간을 보존한다. 기존 요청을 먼저 확보하고 남은 증가분 중 저축할 비율의 기본값을 반환한다. 조회로 승인하지 않는다.\n\n원본: `docs/api/budgets.md`",
+        "summary": "월급 증가분과 보관한 예산 요청 검토",
+        "description": "최신 승인 예산과 이번 주기 유효 급여를 비교한다. 대화 ID가 있으면 본인 대화의 요청·기간을 보존한다. 기존 요청을 먼저 확보하고 남은 증가분 중 저축할 비율의 기본값을 반환한다. 조회로 승인하지 않는다.\n\n원본: `docs/api/budgets.md`",
         "parameters": [
           {
             "name": "conversationId",
@@ -12245,8 +12460,8 @@
           }
         },
         "operationId": "previewSalaryBudgetReview",
-        "summary": "[구현] 저축 비율 확인 후 월급 증가분 재배분 미리보기",
-        "description": "**개발 상태: 구현** — 현재 서버에서 구현된 API입니다.\n\n기존 요청 → 남은 증가분의 선택 저축 비율 → 나머지의 기존 비저축 배분 비율 순서. 기존 여윳돈·저축·쿠션을 자동 소진하지 않는다. 서버가 basisHash와 요청 소유권·보호 조건을 재검증하며 일반 조정 승인 또는 다음 주기 예약 승인으로 확정한다.\n\n원본: `docs/api/budgets.md`",
+        "summary": "저축 비율 확인 후 월급 증가분 재배분 미리보기",
+        "description": "기존 요청 → 남은 증가분의 선택 저축 비율 → 나머지의 기존 비저축 배분 비율 순서. 기존 여윳돈·저축·쿠션을 자동 소진하지 않는다. 서버가 basisHash와 요청 소유권·보호 조건을 재검증하며 일반 조정 승인 또는 다음 주기 예약 승인으로 확정한다.\n\n원본: `docs/api/budgets.md`",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -12279,6 +12494,879 @@
           }
         },
         "x-implementation-status": "implemented"
+      }
+    },
+    "/api/budgets/salary/deposits/": {
+      "get": {
+        "summary": "월급 확인할 입금 보기",
+        "operationId": "salaryDeposits",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "급여 구간(이번 월급날 7일 전 ~ 다음 월급날 8일 전)마다 고를 수 있는 입금과 지금 자동 인식 기준(pattern). 조회할 때 사용자 확인의 기준값(금액·날짜·적요·계좌)을 다시 비교하고 자동 인정을 맞춘다.\n\n- isCandidate: 관리 대상 원화 입출금 계좌의 입금 중 등록 실수령액 80% 이상이고 판단이 없는 것, 또는 재확인(recheck) 대상.\n- decision: null · confirmed(사용자 확인) · auto(자동 인정) · rejected(아님) · recheck(기준 변경·자동 인정 무효로 재확인 필요).\n- 자동 인정: 사용자가 기준으로 고른 입금(회원당 1개)과 같은 계좌·같은 적요 규칙이고 금액이 기준의 절반 이상인 입금 중, 그 회차 월급날에 가장 가까운 1건. 그 회차에 사용자 확인 급여가 있으면 자동으로 더하지 않는다. LLM은 쓰지 않는다.\n- 다음 회차 구간이 아직 시작 전이면 빠진다. 미래 날짜·취소·내 계좌 이체 등 지금 고를 수 없는 거래는 표시하지 않는다.\n\n원본: `docs/api/salary.md`",
+        "responses": {
+          "200": {
+            "description": "급여 구간별 입금과 자동 인식 기준.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryDepositsResponse"
+                },
+                "example": {
+                  "windows": [
+                    {
+                      "payCycleOn": "2026-10-25",
+                      "from": "2026-10-18",
+                      "to": "2026-11-17",
+                      "items": [
+                        {
+                          "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                          "payCycleOn": "2026-10-25",
+                          "date": "2026-10-24",
+                          "amount": 2800000,
+                          "description": "(주)머니쿠션",
+                          "account": {
+                            "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                            "displayName": "국민 급여통장 · ****5678",
+                            "status": "connected"
+                          },
+                          "decision": null,
+                          "isPattern": false,
+                          "isCandidate": true,
+                          "patternUnusableReason": null
+                        }
+                      ]
+                    },
+                    {
+                      "payCycleOn": "2026-11-25",
+                      "from": "2026-11-18",
+                      "to": "2026-11-20",
+                      "items": []
+                    }
+                  ],
+                  "pattern": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "급여일 미등록: invalid (fields.payday).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/budgets/salary/decisions/": {
+      "post": {
+        "summary": "월급 맞아요 · 아니에요 · 판단 지우기",
+        "operationId": "salaryDecide",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "회원 잠금 안에서 저장 시점의 거래 상태를 다시 검증한다.\n\n- confirmed: 고른 입금이 모두 같은 급여 회차여야 한다. 그 회차의 판단을 이 목록으로 바꾼다(목록에 없는 확인·자동 인정은 판단 없음으로). 여러 건(분할 급여)을 확인하면 자동 인식 기준을 끈다.\n- usePattern=true: confirmed이고 한 건이며 적요를 기준으로 쓸 수 있을 때만. 빈 적요·입금·이체·급여·월급처럼 일반적인 적요는 기준으로 못 쓴다.\n- rejected: 재조회로 다시 후보·자동 인정이 되지 않는다. 기준이었다면 기준도 풀린다.\n- none: 판단 줄을 지운다(확인 취소). 자동 인정을 지우면 다음 조회 때 다시 자동 인정될 수 있다.\n- 영향 받은 회차의 인정 합계를 다시 계산한다. 등록 실수령액·승인 예산은 바꾸지 않는다. 인정 합계가 바뀌어 '이번 주기만 받은 금액' 기준이 풀렸으면 basisReset=true.\n\n원본: `docs/api/salary.md`",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalaryDecisionRequest"
+              },
+              "examples": {
+                "confirm": {
+                  "value": {
+                    "transactionIds": [
+                      "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e"
+                    ],
+                    "decision": "confirmed",
+                    "usePattern": true
+                  }
+                },
+                "reject": {
+                  "value": {
+                    "transactionIds": [
+                      "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e"
+                    ],
+                    "decision": "rejected"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "GET과 같은 모양 + basisReset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryDecisionResponse"
+                },
+                "example": {
+                  "windows": [
+                    {
+                      "payCycleOn": "2026-10-25",
+                      "from": "2026-10-18",
+                      "to": "2026-11-17",
+                      "items": [
+                        {
+                          "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                          "payCycleOn": "2026-10-25",
+                          "date": "2026-10-24",
+                          "amount": 2800000,
+                          "description": "(주)머니쿠션",
+                          "account": {
+                            "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                            "displayName": "국민 급여통장 · ****5678",
+                            "status": "connected"
+                          },
+                          "decision": "confirmed",
+                          "isPattern": true,
+                          "isCandidate": false,
+                          "patternUnusableReason": null
+                        }
+                      ]
+                    },
+                    {
+                      "payCycleOn": "2026-11-25",
+                      "from": "2026-11-18",
+                      "to": "2026-11-20",
+                      "items": []
+                    }
+                  ],
+                  "pattern": {
+                    "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                    "payCycleOn": "2026-10-25",
+                    "date": "2026-10-24",
+                    "amount": 2800000,
+                    "description": "(주)머니쿠션",
+                    "account": {
+                      "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                      "displayName": "국민 급여통장 · ****5678",
+                      "status": "connected"
+                    },
+                    "decision": "confirmed",
+                    "isPattern": true,
+                    "isCandidate": false,
+                    "patternUnusableReason": null
+                  },
+                  "basisReset": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "없는·남의·출금 거래, 다른 회차 섞임, 기준으로 못 쓰는 적요: invalid (fields.transactionIds · fields.usePattern).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 요청 번호에 다른 내용: idempotency_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/budgets/salary/pattern/": {
+      "delete": {
+        "summary": "월급 자동 인식 끄기",
+        "operationId": "salaryPatternDelete",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "자동 인식 기준을 끈다(기준 거래의 확인은 그대로). 이번·다음 회차에서 사용자 확인 없는 자동 인정은 확인 대상으로 돌아간다. 지난 회차 기록은 바꾸지 않는다. 기준이 없어도 200.\n\n원본: `docs/api/salary.md`",
+        "responses": {
+          "200": {
+            "description": "GET /api/budgets/salary/deposits/와 같은 모양.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryDepositsResponse"
+                },
+                "example": {
+                  "windows": [
+                    {
+                      "payCycleOn": "2026-10-25",
+                      "from": "2026-10-18",
+                      "to": "2026-11-17",
+                      "items": [
+                        {
+                          "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                          "payCycleOn": "2026-10-25",
+                          "date": "2026-10-24",
+                          "amount": 2800000,
+                          "description": "(주)머니쿠션",
+                          "account": {
+                            "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                            "displayName": "국민 급여통장 · ****5678",
+                            "status": "connected"
+                          },
+                          "decision": null,
+                          "isPattern": false,
+                          "isCandidate": true,
+                          "patternUnusableReason": null
+                        }
+                      ]
+                    },
+                    {
+                      "payCycleOn": "2026-11-25",
+                      "from": "2026-11-18",
+                      "to": "2026-11-20",
+                      "items": []
+                    }
+                  ],
+                  "pattern": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "급여일 미등록: invalid (fields.payday).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ]
+      }
+    },
+    "/api/budgets/salary/gap/": {
+      "post": {
+        "summary": "월급 차이 안내에 답하기",
+        "operationId": "salaryGapAnswer",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "홈 period.salaryGap(받은 월급이 등록 실수령액과 1만 원 이상 · 3% 이상 차이)에 답한다. 등록 실수령액은 바꾸지 않는다.\n\n- apply: 이번 주기만 받은 금액으로 지킬 돈·추천을 나눈다(budget_cycle.income_basis). 승인 전 초안은 만료하고, 승인 예산은 지킬 돈 저장 → 새 추천 승인으로 바뀐다.\n- keep: 기준은 그대로.\n- 두 답 모두 같은 받은 금액으로는 다시 묻지 않게 기록한다. 받은 금액이 나중에 바뀌면(확인 취소·분할 입금 추가) 기준을 등록 실수령액으로 되돌리고 다시 묻는다.\n\n원본: `docs/api/salary.md`",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalaryGapRequest"
+              },
+              "examples": {
+                "apply": {
+                  "value": {
+                    "answer": "apply",
+                    "salaryAmount": 2200000
+                  }
+                },
+                "keep": {
+                  "value": {
+                    "answer": "keep",
+                    "salaryAmount": 2200000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "지금 이 주기 예산 기준 금액.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryGapResponse"
+                },
+                "examples": {
+                  "apply": {
+                    "value": {
+                      "incomeBasis": 2200000,
+                      "salaryAmount": 2200000
+                    }
+                  },
+                  "keep": {
+                    "value": {
+                      "incomeBasis": null,
+                      "salaryAmount": 2200000
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "화면이 본 받은 금액이 지금 인정 합계와 다름(fields.salaryAmount), 급여일 미등록(fields.payday), 다른 칸: invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 요청 번호에 다른 내용: idempotency_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ]
+      }
+    },
+    "/api/budgets/cushion/": {
+      "get": {
+        "summary": "머니쿠션 보기",
+        "operationId": "cushionGet",
+        "tags": [
+          "쿠션"
+        ],
+        "x-source": "docs/api/cushion.md",
+        "description": "확보액·목표·월 적립금·예상 기간과 저축 계좌 잔액, 쿠션 안내 상태.\n\n- 확보액(now) = 본인 cushion_entry.amount 합계. 월급날 이틀 뒤부터 적용 중인 예산의 쿠션 배정액을 '예산 보호(planned)' 기록으로 쌓는다. 실제 이체 완료를 뜻하지 않는 앱 추정액이다.\n- 목표 = 직접 정한 금액, 없으면 월 실수령액 × 3. 소득이 없으면 null이고 missing에 takeHomeIncome.\n- 월 적립금 = 지킬 돈의 월 쿠션 적립금. 미설정 null과 0원을 구분한다.\n- pct는 반올림 비율(100 초과 그대로), bar는 0~100으로 자른 막대 길이, etaMonths는 남은 금액 ÷ 월 적립금 올림(달성 시 0).\n- savings: 연결된 은행의 예적금 계좌를 저장된 잔액으로 보여 주는 참고 정보이며 확보액 계산에 쓰지 않는다. CODEF를 새로 부르지 않는다.\n- notices.depositDue: 오늘이 쿠션 넣는 날(급여 주기 시작 다음 날). notices.balanceLow: 연결 은행 계좌 잔액 합계 < 확보액.\n- 프로필이 없어도 200이다. 자료가 없다는 이유로 404·409를 반환하지 않는다.\n\n원본: `docs/api/cushion.md`",
+        "responses": {
+          "200": {
+            "description": "머니쿠션 상태.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CushionResponse"
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "missing": [],
+                      "cushion": {
+                        "now": 300000,
+                        "goal": 8400000,
+                        "goalLabel": "월급의 3배",
+                        "goalCustom": false,
+                        "defaultGoal": 8400000,
+                        "bar": 3.57,
+                        "pct": 4,
+                        "monthly": 210000,
+                        "useRule": null,
+                        "remain": 8100000,
+                        "eta": "39회 · 약 39개월",
+                        "etaMonths": 39
+                      },
+                      "savings": {
+                        "items": [
+                          {
+                            "accountId": "9c2e7b10-5a4f-4d8e-b3c1-7f6a5e4d3c2b",
+                            "displayName": "신한 자유적금 · ****9012",
+                            "status": "connected",
+                            "organizationName": "신한은행",
+                            "balance": 1200000,
+                            "fetchedAt": "2026-11-19T09:00:00+09:00"
+                          }
+                        ],
+                        "total": 1200000,
+                        "unknownCount": 0,
+                        "asOf": "2026-11-19T09:00:00+09:00"
+                      },
+                      "notices": {
+                        "depositDue": false,
+                        "balanceLow": false
+                      }
+                    }
+                  },
+                  "notSet": {
+                    "value": {
+                      "missing": [
+                        "takeHomeIncome",
+                        "cushionMonthly"
+                      ],
+                      "cushion": {
+                        "now": 0,
+                        "goal": null,
+                        "goalLabel": "월급의 3배",
+                        "goalCustom": false,
+                        "defaultGoal": null,
+                        "bar": null,
+                        "pct": null,
+                        "monthly": null,
+                        "useRule": null,
+                        "remain": null,
+                        "eta": "급여를 먼저 입력해 주세요.",
+                        "etaMonths": null
+                      },
+                      "savings": {
+                        "items": [],
+                        "total": null,
+                        "unknownCount": 0,
+                        "asOf": null
+                      },
+                      "notices": {
+                        "depositDue": false,
+                        "balanceLow": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      },
+      "patch": {
+        "summary": "머니쿠션 목표 금액 바꾸기",
+        "operationId": "cushionGoalPatch",
+        "tags": [
+          "쿠션"
+        ],
+        "x-source": "docs/api/cushion.md",
+        "description": "목표 금액을 직접 정하거나(10,000~1,000,000,000원) null로 기본값(월급의 3배)으로 되돌린다. 다른 칸은 받지 않는다 — 월 쿠션 적립금은 지킬 돈(PUT /api/budgets/protect/)에서 바꾼다.\n\n직접 정한 목표는 월급이 바뀌어도 유지된다. 값이 바뀌면 승인 전 예산 초안(draft·validated)을 만료한다(쿠션 필수 판단·추천 쿠션이 달라질 수 있음). 승인 예산·쿠션 기록은 바꾸지 않는다. 같은 값이면 바꾸지 않고 200.\n\n원본: `docs/api/cushion.md`",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CushionGoalRequest"
+              },
+              "examples": {
+                "custom": {
+                  "value": {
+                    "goalAmount": 5000000
+                  }
+                },
+                "reset": {
+                  "value": {
+                    "goalAmount": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "GET과 같은 전체 구조.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CushionResponse"
+                },
+                "example": {
+                  "missing": [],
+                  "cushion": {
+                    "now": 300000,
+                    "goal": 5000000,
+                    "goalLabel": "직접 정한 금액",
+                    "goalCustom": true,
+                    "defaultGoal": 8400000,
+                    "bar": 6.0,
+                    "pct": 6,
+                    "monthly": 210000,
+                    "useRule": null,
+                    "remain": 4700000,
+                    "eta": "23회 · 약 23개월",
+                    "etaMonths": 23
+                  },
+                  "savings": {
+                    "items": [
+                      {
+                        "accountId": "9c2e7b10-5a4f-4d8e-b3c1-7f6a5e4d3c2b",
+                        "displayName": "신한 자유적금 · ****9012",
+                        "status": "connected",
+                        "organizationName": "신한은행",
+                        "balance": 1200000,
+                        "fetchedAt": "2026-11-19T09:00:00+09:00"
+                      }
+                    ],
+                    "total": 1200000,
+                    "unknownCount": 0,
+                    "asOf": "2026-11-19T09:00:00+09:00"
+                  },
+                  "notices": {
+                    "depositDue": false,
+                    "balanceLow": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "칸 없음·다른 칸·범위 밖·문자열·소수·불리언: invalid (fields.goalAmount). 잘못된 JSON: parse_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "내 정보(프로필)가 아직 없음: not_ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ]
+      }
+    },
+    "/api/policies/regions/": {
+      "get": {
+        "summary": "사는 지역 목록",
+        "operationId": "policyRegions",
+        "tags": [
+          "청년 정책"
+        ],
+        "x-source": "docs/api/policies.md",
+        "description": "시도 16개와 그 아래 고를 수 있는 시군구. 구가 있는 시는 구까지, 세종은 시도 자신이 시군구다. 온보딩·내 정보·채팅 정책 지역 선택이 같은 목록을 쓰며, regions[].code를 PUT /api/profile/의 regionCode로 보낸다.\n\n원본: `docs/api/policies.md`",
+        "responses": {
+          "200": {
+            "description": "시도 → 시군구 목록.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyRegionsResponse"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "code": "11000",
+                      "name": "서울특별시",
+                      "regions": [
+                        {
+                          "code": "11110",
+                          "name": "종로구"
+                        },
+                        {
+                          "code": "11620",
+                          "name": "관악구"
+                        }
+                      ]
+                    },
+                    {
+                      "code": "36110",
+                      "name": "세종특별자치시",
+                      "regions": [
+                        {
+                          "code": "36110",
+                          "name": "세종특별자치시"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/policies/saved/": {
+      "get": {
+        "summary": "저장한 정책 목록",
+        "operationId": "policySavedList",
+        "tags": [
+          "청년 정책"
+        ],
+        "x-source": "docs/api/policies.md",
+        "description": "저장한 정책을 최신 저장순으로. 마감·수집 종료(active=false)된 정책도 지우지 않고 상태로 보여 준다. 화면(마이 → 저장한 정책)은 신청할 수 있는 정책을 위에, 지난 정책을 아래에 접어 둔다.\n\n원본: `docs/api/policies.md`",
+        "responses": {
+          "200": {
+            "description": "저장 목록. 없으면 items: [].",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPolicyListResponse"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "savedPolicyId": "3f2c9a10-7b6d-4e21-9c8a-1d2e3f4a5b6c",
+                      "policyNo": "20261021005400214208",
+                      "name": "2026 청년 월세 지원",
+                      "applyState": "open",
+                      "applyEnd": "2026-12-31",
+                      "link": "https://www.youthcenter.go.kr/",
+                      "active": true,
+                      "region": "서울특별시",
+                      "supportType": null,
+                      "support": "월 최대 20만 원, 최대 12개월 월세 지원",
+                      "savedAt": "2026-11-10T15:30:00+09:00"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented"
+      }
+    },
+    "/api/policies/{policyNo}/saved/": {
+      "parameters": [
+        {
+          "name": "policyNo",
+          "in": "path",
+          "required": true,
+          "description": "온통청년 정책번호 (20자리 숫자 문자열, UUID 아님). 없는 번호·형식이 틀린 번호는 404",
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9]{20}$"
+          }
+        }
+      ],
+      "put": {
+        "summary": "정책 저장",
+        "operationId": "policySave",
+        "tags": [
+          "청년 정책"
+        ],
+        "x-source": "docs/api/policies.md",
+        "description": "채팅 정책 카드의 [저장]. 이미 저장한 정책이어도 200으로 같은 칸을 돌려주므로(두 번 눌러도 한 줄) Idempotency-Key가 필요 없다. 본문은 보내지 않거나 {}만.\n\n원본: `docs/api/policies.md`",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "maxProperties": 0
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "저장한 정책 한 칸.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPolicy"
+                },
+                "example": {
+                  "savedPolicyId": "3f2c9a10-7b6d-4e21-9c8a-1d2e3f4a5b6c",
+                  "policyNo": "20261021005400214208",
+                  "name": "2026 청년 월세 지원",
+                  "applyState": "open",
+                  "applyEnd": "2026-12-31",
+                  "link": "https://www.youthcenter.go.kr/",
+                  "active": true,
+                  "region": "서울특별시",
+                  "supportType": null,
+                  "support": "월 최대 20만 원, 최대 12개월 월세 지원",
+                  "savedAt": "2026-11-10T15:30:00+09:00"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "본문에 칸을 보냄: invalid. 잘못된 JSON: parse_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "없는 정책번호·수집이 끝난 정책: not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ]
+      },
+      "delete": {
+        "summary": "정책 저장 취소",
+        "operationId": "policyUnsave",
+        "tags": [
+          "청년 정책"
+        ],
+        "x-source": "docs/api/policies.md",
+        "description": "저장돼 있지 않아도 204(이미 원하는 상태). 수집이 끝난 정책도 취소할 수 있다.\n\n원본: `docs/api/policies.md`",
+        "responses": {
+          "204": {
+            "description": "본문 없음."
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "없는 정책번호: not_found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CsrfToken"
+          }
+        ]
       }
     }
   },
@@ -12655,14 +13743,14 @@
                   }
                 },
                 "nullable": true,
-                "description": "다음 주기부터 바뀔 월 실수령액 예약 (11/12). 없으면 null",
+                "description": "다음 주기부터 바뀔 월 실수령액 예약. 없으면 null",
                 "additionalProperties": false
               },
               "incomeBasis": {
                 "type": "integer",
                 "minimum": 1,
                 "nullable": true,
-                "description": "이번 주기를 받은 월급 기준으로 짰으면 그 금액 (11/13). 없으면 null"
+                "description": "이번 주기를 받은 월급 기준으로 짰으면 그 금액. 없으면 null"
               }
             },
             "additionalProperties": false
@@ -12813,6 +13901,183 @@
           "items"
         ],
         "additionalProperties": false
+      },
+      "ProfileCategoryItem": {
+        "type": "object",
+        "required": [
+          "category",
+          "categoryName"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/CategoryCode"
+          },
+          "categoryName": {
+            "type": "string",
+            "description": "응답 전용 표시 이름"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "priorities에만"
+          },
+          "minAmount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "categoryMinimums에만"
+          }
+        }
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "required": [
+          "birthDate",
+          "gender",
+          "housingType",
+          "hasCar",
+          "regionCode",
+          "regionName",
+          "priorities",
+          "categoryMinimums"
+        ],
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              null
+            ],
+            "nullable": true
+          },
+          "housingType": {
+            "type": "string",
+            "enum": [
+              "alone",
+              "family",
+              null
+            ],
+            "nullable": true,
+            "description": "alone 자취 · family 본가 거주. 지킬 돈 비율(자취 55/30/5/10, 본가 45/40/5/10)의 입력"
+          },
+          "hasCar": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "regionCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "사는 지역 시군구 코드"
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true,
+            "description": "응답 전용. 예: 서울특별시 관악구"
+          },
+          "priorities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileCategoryItem"
+            }
+          },
+          "categoryMinimums": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileCategoryItem"
+            }
+          }
+        }
+      },
+      "ProfileSaveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "birthDate",
+          "gender",
+          "housingType",
+          "hasCar",
+          "regionCode",
+          "priorities",
+          "categoryMinimums"
+        ],
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "실제 날짜, 오늘 이후 불가, 만 0~120세"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female"
+            ]
+          },
+          "housingType": {
+            "type": "string",
+            "enum": [
+              "alone",
+              "family"
+            ]
+          },
+          "hasCar": {
+            "type": "boolean"
+          },
+          "regionCode": {
+            "type": "string",
+            "pattern": "^[0-9]{5}$"
+          },
+          "priorities": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "category",
+                "rank"
+              ],
+              "properties": {
+                "category": {
+                  "$ref": "#/components/schemas/SelectableCategoryCode"
+                },
+                "rank": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8
+                }
+              }
+            }
+          },
+          "categoryMinimums": {
+            "type": "array",
+            "maxItems": 9,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "category",
+                "minAmount"
+              ],
+              "properties": {
+                "category": {
+                  "$ref": "#/components/schemas/SelectableCategoryCode"
+                },
+                "minAmount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9999999999
+                }
+              }
+            }
+          }
+        }
       },
       "FinanceConsentInput": {
         "type": "object",
@@ -13303,7 +14568,7 @@
               "loading",
               "failed"
             ],
-            "description": "연결 직후 불러오기. done 완료 · failed 연결은 됐지만 불러오기 실패. loading(11/09, 카드사): 보유카드는 받았고 청구서 · 승인내역은 syncTaskId 작업이 뒤에서 불러오는 중"
+            "description": "연결 직후 불러오기. done 완료 · failed 연결은 됐지만 불러오기 실패. loading(카드사): 보유카드는 받았고 청구서 · 승인내역은 syncTaskId 작업이 뒤에서 불러오는 중"
           },
           "accountCount": {
             "type": "integer",
@@ -13609,12 +14874,12 @@
           "foreignPendingCount": {
             "type": "integer",
             "minimum": 0,
-            "description": "카드 수집 실행 성공 시, 원화 금액이 없어 저장하지 못한 외화 승인 건수 (11/07). approvalsComplete를 false로 만들지 않는다."
+            "description": "카드 수집 실행 성공 시, 원화 금액이 없어 저장하지 못한 외화 승인 건수. approvalsComplete를 false로 만들지 않는다."
           },
           "foreignFilledCount": {
             "type": "integer",
             "minimum": 0,
-            "description": "카드 수집 실행 성공 시, 원화 금액이 없던 외화 승인 중 청구서 · 체크카드 계좌 출금의 원화 금액으로 이번에 새로 저장한 건수 (11/09)."
+            "description": "카드 수집 실행 성공 시, 원화 금액이 없던 외화 승인 중 청구서 · 체크카드 계좌 출금의 원화 금액으로 이번에 새로 저장한 건수."
           }
         },
         "required": [
@@ -13830,7 +15095,7 @@
           "cardType": {
             "type": "string",
             "nullable": true,
-            "description": "저장된 기관 카드 종류. 정규화 기준 미정."
+            "description": "저장된 기관 카드 종류."
           },
           "cardStatus": {
             "type": "string",
@@ -13881,7 +15146,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "전체 선택을 대체. 빈 배열은 전체 해제. 중복/최대 개수 정책은 미정."
+            "description": "전체 선택을 대체. 빈 배열은 전체 해제."
           }
         },
         "required": [
@@ -14039,7 +15304,7 @@
             "type": "string",
             "format": "date",
             "nullable": true,
-            "description": "출금 예정일. 없으면 결제 예정일을 출금일로 보고, 둘 다 모르면 납부 예정 생성 안 함 (11/5)."
+            "description": "출금 예정일. 없으면 결제 예정일을 출금일로 보고, 둘 다 모르면 납부 예정 생성 안 함."
           },
           "paymentAccount": {
             "description": "결제 계좌를 모르면 객체 전체 null.",
@@ -14099,7 +15364,7 @@
             "description": "청구 상세. 미확보 null, 정상 확인된 0건 [], 일부면 확보분만."
           },
           "paymentCheck": {
-            "description": "앞으로 낼 금액 확인 (11/06). 카드사 통합 청구서만, 그 밖은 null.",
+            "description": "앞으로 낼 금액 확인. 카드사 통합 청구서만, 그 밖은 null.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/CardBillCheckStatus"
@@ -14613,7 +15878,7 @@
               "no_charge",
               "total_mismatch"
             ],
-            "description": "paid_by_transactions=연결된 계좌 출금이 청구액 이상 · user_confirmed=사용자 확인 · recheck=확인 뒤 청구액이 바뀌었거나 출금 기록과 다름(조용히 덮지 않음) · unchecked=확인 없음/나중에 확인 · no_charge=청구액 0원 이하 · total_mismatch=청구 총액이 상세 합계보다 작아 원래 청구액을 모름(총액 0원이라고 낼 금액 없음으로 보지 않음, 11/06)"
+            "description": "paid_by_transactions=연결된 계좌 출금이 청구액 이상 · user_confirmed=사용자 확인 · recheck=확인 뒤 청구액이 바뀌었거나 출금 기록과 다름(조용히 덮지 않음) · unchecked=확인 없음/나중에 확인 · no_charge=청구액 0원 이하 · total_mismatch=청구 총액이 상세 합계보다 작아 원래 청구액을 모름(총액 0원이라고 낼 금액 없음으로 보지 않음)"
           },
           "remainingAmount": {
             "type": "integer",
@@ -15087,7 +16352,7 @@
             "nullable": true,
             "minimum": 0,
             "maximum": 30,
-            "description": "직접 등록 연 이율(%). 0% 유효. 1차 PATCH로 수정 불가."
+            "description": "직접 등록 연 이율(%). 0% 유효. PATCH로 정정할 수 있다."
           },
           "maturityDate": {
             "type": "string",
@@ -15301,7 +16566,7 @@
           },
           "amountDifference": {
             "type": "integer",
-            "description": "실제 − 남은 예정액, 원. 남은 예정액 = 예정 − 이 출금 말고 이 회차에 이미 연결한 출금 합계(0 아래 안 내림, 11/9). 참고용"
+            "description": "실제 − 남은 예정액, 원. 남은 예정액 = 예정 − 이 출금 말고 이 회차에 이미 연결한 출금 합계(0 아래 안 내림). 참고용"
           },
           "hints": {
             "$ref": "#/components/schemas/LoanPaymentHints"
@@ -15663,7 +16928,7 @@
           },
           "isSalary": {
             "type": "boolean",
-            "description": "R12: 인정된 급여 입금이면 true — 사용자가 확인했거나 확인한 기준과 같은 패턴이라 자동 인정된 입금만 (저장된 salary_decision, 홈과 같은 근거). 판단 없는 후보·거절·취소·내 계좌 이체는 false. 출금·이체는 항상 false."
+            "description": "인정된 급여 입금이면 true — 사용자가 확인했거나 확인한 기준과 같은 패턴이라 자동 인정된 입금만 (저장된 salary_decision, 홈과 같은 근거). 판단 없는 후보·거절·취소·내 계좌 이체는 false. 출금·이체는 항상 false."
           },
           "ownTransferReview": {
             "type": "string",
@@ -15675,11 +16940,11 @@
               "rejected",
               null
             ],
-            "description": "내 계좌 이체 판단 (R11, 11/5). transfer·own_transfer·saving 출금만, 그 밖은 null. suggested = 출금 적요가 가입 이름과 같아 추정(유형은 transfer 그대로) · auto = 규칙이 양쪽 거래를 묶어 자동 분류(own_transfer, 뒤에 저축 처리되면 saving. 같은 금액·5분 이내·양쪽 적요 모두 가입 이름·양쪽 후보 유일 — 확실한 식별 아님) · confirmed = 사용자가 [맞아요] · rejected = 사용자가 [아니에요]·확인 취소·연결 해제(transfer). auto·confirmed 출금은 저축이 된 뒤에도 목록에 남아 되돌릴 수 있다."
+            "description": "내 계좌 이체 판단. transfer·own_transfer·saving 출금만, 그 밖은 null. suggested = 출금 적요가 가입 이름과 같아 추정(유형은 transfer 그대로) · auto = 규칙이 양쪽 거래를 묶어 자동 분류(own_transfer, 뒤에 저축 처리되면 saving. 같은 금액·5분 이내·양쪽 적요 모두 가입 이름·양쪽 후보 유일 — 확실한 식별 아님) · confirmed = 사용자가 [맞아요] · rejected = 사용자가 [아니에요]·확인 취소·연결 해제(transfer). auto·confirmed 출금은 저축이 된 뒤에도 목록에 남아 되돌릴 수 있다."
           },
           "ownTransferRecheck": {
             "type": "boolean",
-            "description": "auto인데 나중에 들어온 거래로 상대 후보가 여럿이 됐지만 저축·납부·고정지출 근거라 자동으로 풀지 않은 연결이면 true. 거래 상세에서 ownTransfer로 정정 (R11)."
+            "description": "auto인데 나중에 들어온 거래로 상대 후보가 여럿이 됐지만 저축·납부·고정지출 근거라 자동으로 풀지 않은 연결이면 true. 거래 상세에서 ownTransfer로 정정."
           },
           "salaryReview": {
             "type": "string",
@@ -16078,11 +17343,11 @@
               },
               "wasTransfer": {
                 "type": "boolean",
-                "description": "원래 이체였다가 소비로 바뀐 거래인지 (11/03). true면 화면이 [이체로 되돌리기](category: null)를 보여 준다. 고정지출에 연결된 거래는 되돌리기가 400(AA⑤)."
+                "description": "원래 이체였다가 소비로 바뀐 거래인지. true면 화면이 [이체로 되돌리기](category: null)를 보여 준다. 고정지출에 연결된 거래는 되돌리기가 400(AA⑤)."
               },
               "canApplyToFuture": {
                 "type": "boolean",
-                "description": "'앞으로 이 가게 거래도 이 카테고리로' 체크박스를 보여 줄지 (10/30). 소비 거래이고 원래 이체·페이 충전이 아니면 true. 다품목 가맹점도 true (11/06)."
+                "description": "'앞으로 이 가게 거래도 이 카테고리로' 체크박스를 보여 줄지. 소비 거래이고 원래 이체·페이 충전이 아니면 true. 다품목 가맹점도 true."
               }
             },
             "required": [
@@ -16117,15 +17382,15 @@
           "applyToFuture": {
             "type": "boolean",
             "default": false,
-            "description": "true면 같은 가맹점의 다음 새 거래도 이 카테고리로 자동 분류 (10/30). canApplyToFuture가 false인 거래에 보내도 400을 내지 않고 재사용하지 않는다. 기준은 같은 가맹점에서 사용자가 마지막으로 고른 거래. 카드사 업종이 분명히 다르면 재사용하지 않는다."
+            "description": "true면 같은 가맹점의 다음 새 거래도 이 카테고리로 자동 분류. canApplyToFuture가 false인 거래에 보내도 400을 내지 않고 재사용하지 않는다. 기준은 같은 가맹점에서 사용자가 마지막으로 고른 거래. 카드사 업종이 분명히 다르면 재사용하지 않는다."
           },
           "ownTransfer": {
             "type": "boolean",
-            "description": "내 계좌 이체 확인 (R11). true = [맞아요]: 이 출금만 own_transfer(입금 거래로 넓히지 않음), auto면 유형·연결 그대로 confirmed. false = [아니에요]·확인 취소·연결 해제: transfer로, 규칙이 이은 입금은 income으로 되돌리고, saving이 된 출금은 정기 저축 근거에서 뺀다. 거절해도 소비로 바뀌지 않는다. 지금 유형이 소비 등이면 true·false 모두 400. 다른 칸과 같이 보내면 400."
+            "description": "내 계좌 이체 확인. true = [맞아요]: 이 출금만 own_transfer(입금 거래로 넓히지 않음), auto면 유형·연결 그대로 confirmed. false = [아니에요]·확인 취소·연결 해제: transfer로, 규칙이 이은 입금은 income으로 되돌리고, saving이 된 출금은 정기 저축 근거에서 뺀다. 거절해도 소비로 바뀌지 않는다. 지금 유형이 소비 등이면 true·false 모두 400. 다른 칸과 같이 보내면 400."
           },
           "notSpending": {
             "type": "boolean",
-            "description": "11/13 '소비가 아니에요'. true = 소비(spending) → not_spending (예산 · 소비 합계에서 빠지고 목록에는 남음), false = not_spending → spending (카테고리 · 분류 상태는 그대로 둬서 원래대로). 소비가 아닌 거래 · 전액 취소 · 고정지출 연결 소비는 400. 이미 원하는 상태면 200. 다른 칸과 같이 보내면 400."
+            "description": "'소비가 아니에요'. true = 소비(spending) → not_spending (예산 · 소비 합계에서 빠지고 목록에는 남음), false = not_spending → spending (카테고리 · 분류 상태는 그대로 둬서 원래대로). 소비가 아닌 거래 · 전액 취소 · 고정지출 연결 소비는 400. 이미 원하는 상태면 200. 다른 칸과 같이 보내면 400."
           }
         },
         "additionalProperties": false,
@@ -16217,7 +17482,7 @@
               "funding",
               "fixedExpenseId"
             ],
-            "description": "11/13 '소비가 아니에요'로 뺀 소비 (회사 경비 등). 카테고리 · 분류 상태 · funding은 null이고 예산 · 소비 합계에 들어가지 않는다. PATCH {notSpending:false}로 원래 카테고리의 소비로 되돌린다."
+            "description": "'소비가 아니에요'로 뺀 소비 (회사 경비 등). 카테고리 · 분류 상태 · funding은 null이고 예산 · 소비 합계에 들어가지 않는다. PATCH {notSpending:false}로 원래 카테고리의 소비로 되돌린다."
           }
         ]
       },
@@ -16267,12 +17532,12 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "이 후보로 갚을 회차. 카드·아직 회차가 없으면 null (10/27)."
+            "description": "이 후보로 갚을 회차. 카드·아직 회차가 없으면 null."
           },
           "dueDate": {
             "type": "string",
             "format": "date",
-            "description": "그 회차의 출금일 (10/27)."
+            "description": "그 회차의 출금일."
           }
         },
         "required": [
@@ -16280,7 +17545,7 @@
           "candidates"
         ],
         "nullable": true,
-        "description": "카드: 출금일이 있고 이번 주기에 연결된 결제가 없을 때 후보 1건 이상(근거 거래가 있어도 그 달 자동 연결이 안 됐으면 묻는다, 11/4). 계좌: 이번 회차 후보 1건 이상(11/3, 기억한 출금 1건은 자동 연결돼 남지 않음). 그 밖에는 null."
+        "description": "카드: 출금일이 있고 이번 주기에 연결된 결제가 없을 때 후보 1건 이상(근거 거래가 있어도 그 달 자동 연결이 안 됐으면 묻는다). 계좌: 이번 회차 후보 1건 이상(기억한 출금 1건은 자동 연결돼 남지 않음). 그 밖에는 null."
       },
       "FixedExpense": {
         "type": "object",
@@ -16586,7 +17851,7 @@
             "items": {
               "$ref": "#/components/schemas/FixedRecentDue"
             },
-            "description": "계좌 고정지출의 지난 주기·이번 주기 회차. 카드·모름이면 []. dueId 를 수정 요청의 evidenceDueId 로 보냄 (10/27)."
+            "description": "계좌 고정지출의 지난 주기·이번 주기 회차. 카드·모름이면 []. dueId 를 수정 요청의 evidenceDueId 로 보냄."
           },
           "paidThisCycle": {
             "allOf": [
@@ -16595,7 +17860,7 @@
               }
             ],
             "nullable": true,
-            "description": "이번 급여 주기에 이미 낸 거래 (11/4). 계좌는 이번 주기 회차가 paid 일 때 그 출금, 카드는 이번 주기에 연결된 결제. 확정 항목만, 없으면 null."
+            "description": "이번 급여 주기에 이미 낸 거래. 계좌는 이번 주기 회차가 paid 일 때 그 출금, 카드는 이번 주기에 연결된 결제. 확정 항목만, 없으면 null."
           }
         },
         "required": [
@@ -16652,7 +17917,7 @@
           "cardLoading": {
             "type": "object",
             "nullable": true,
-            "description": "11/12. 카드 내역을 서버가 뒤에서 불러오는 중이면 { taskId, institutions }, 아니면 null. 첫 설정 화면은 안내를 띄우고 [다음]을 막은 뒤 작업이 끝나면 다시 읽는다",
+            "description": "카드 내역을 서버가 뒤에서 불러오는 중이면 { taskId, institutions }, 아니면 null. 첫 설정 화면은 안내를 띄우고 [다음]을 막은 뒤 작업이 끝나면 다시 읽는다",
             "required": [
               "taskId",
               "institutions"
@@ -16732,7 +17997,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "선택한 카드·계좌의 본인 거래만. 다른 고정지출에 연결된 거래 불가. 카드·계좌 모름이면 지정 불가. null=이번 주기 연결 비우기. 1차 추가 화면은 보내지 않고 저장 뒤 목록에서 고른다."
+            "description": "선택한 카드·계좌의 본인 거래만. 다른 고정지출에 연결된 거래 불가. 카드·계좌 모름이면 지정 불가. null=이번 주기 연결 비우기. 추가 화면은 보내지 않고 저장 뒤 목록에서 고른다."
           },
           "category": {
             "$ref": "#/components/schemas/SelectableCategoryCode"
@@ -16784,7 +18049,7 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "선택한 카드·계좌의 본인 거래만. 다른 고정지출에 연결된 거래 불가. 카드·계좌 모름이면 지정 불가. null=이번 주기 연결 비우기. 1차 추가 화면은 보내지 않고 저장 뒤 목록에서 고른다."
+            "description": "선택한 카드·계좌의 본인 거래만. 다른 고정지출에 연결된 거래 불가. 카드·계좌 모름이면 지정 불가. null=이번 주기 연결 비우기. 추가 화면은 보내지 않고 저장 뒤 목록에서 고른다."
           },
           "category": {
             "$ref": "#/components/schemas/SelectableCategoryCode"
@@ -16792,7 +18057,7 @@
           "evidenceDueId": {
             "type": "string",
             "format": "uuid",
-            "description": "계좌 고정지출에서 evidenceTransactionId 와 같이 보낼 때만. 근거 거래를 붙이거나(값) 풀(null) 회차. 목록 recentDues[].dueId 중 하나. 생략하면 서버가 정한 회차(지난 주기 미납이 있으면 그 회차, 없으면 이번 회차). 지정한 회차만 바꾸고 다른 회차의 납부 기록은 유지 (10/27)."
+            "description": "계좌 고정지출에서 evidenceTransactionId 와 같이 보낼 때만. 근거 거래를 붙이거나(값) 풀(null) 회차. 목록 recentDues[].dueId 중 하나. 생략하면 서버가 정한 회차(지난 주기 미납이 있으면 그 회차, 없으면 이번 회차). 지정한 회차만 바꾸고 다른 회차의 납부 기록은 유지."
           }
         },
         "minProperties": 1,
@@ -16851,7 +18116,7 @@
           "paymentState",
           "transactions"
         ],
-        "description": "지난 주기·이번 주기 회차 하나와 연결된 출금 (10/27)."
+        "description": "지난 주기·이번 주기 회차 하나와 연결된 출금."
       },
       "FixedCardBillPreview": {
         "type": "object",
@@ -17356,7 +18621,7 @@
                   "waiting",
                   "unknown"
                 ],
-                "description": "R12: received 인정된 급여(사용자 확인·자동 인정) 있음 · needs_check 판단 없는 후보만 있음(받음·아직으로 단정하지 않음) · waiting 후보도 없음 · unknown 실수령액 미등록"
+                "description": "received 인정된 급여(사용자 확인·자동 인정) 있음 · needs_check 판단 없는 후보만 있음(받음·아직으로 단정하지 않음) · waiting 후보도 없음 · unknown 실수령액 미등록"
               },
               "salaryReceivedOn": {
                 "type": "string",
@@ -17393,7 +18658,7 @@
               "salaryGap": {
                 "type": "object",
                 "nullable": true,
-                "description": "11/13. 받은 월급이 등록 실수령액과 1만원 이상 · 3% 이상 다르고 아직 그 금액으로 답하지 않았으면 채운다. 답하기: POST /api/budgets/salary/gap/ (docs/api/salary.md)",
+                "description": "받은 월급이 등록 실수령액과 1만원 이상 · 3% 이상 다르고 아직 그 금액으로 답하지 않았으면 채운다. 답하기: POST /api/budgets/salary/gap/ (docs/api/salary.md)",
                 "properties": {
                   "diff": {
                     "type": "integer",
@@ -17527,7 +18792,7 @@
               },
               "livingSpent": {
                 "type": "integer",
-                "description": "11/17. 이번 주기 생활비 사용액 (생활비를 넘어도 그대로)"
+                "description": "이번 주기 생활비 사용액 (생활비를 넘어도 그대로)"
               },
               "livingPct": {
                 "type": "integer",
@@ -17603,7 +18868,7 @@
               "nag": {
                 "type": "string",
                 "nullable": true,
-                "description": "11/13. 이번 주기에 예산을 자주 바꾸면 홈 종 알림 문구 (예산 화면 nag 와 같은 값). 없으면 null"
+                "description": "이번 주기에 예산을 자주 바꾸면 홈 종 알림 문구 (예산 화면 nag 와 같은 값). 없으면 null"
               },
               "overCategories": {
                 "type": "array",
@@ -17677,7 +18942,7 @@
               },
               "week": {
                 "type": "object",
-                "description": "11/17. 이번 주(월요일 시작) 몫. budget = 이번 주 전까지 쓰고 남은 생활비 ÷ 남은 주 수(올림, 최소 1)",
+                "description": "이번 주(월요일 시작) 몫. budget = 이번 주 전까지 쓰고 남은 생활비 ÷ 남은 주 수(올림, 최소 1)",
                 "properties": {
                   "budget": {
                     "type": "integer"
@@ -17699,7 +18964,7 @@
               "forecast": {
                 "type": "object",
                 "nullable": true,
-                "description": "11/17. 지금까지 하루 평균 × 주기 전체 일수. 주기 첫날 null",
+                "description": "지금까지 하루 평균 × 주기 전체 일수. 주기 첫날 null",
                 "properties": {
                   "total": {
                     "type": "integer"
@@ -17716,7 +18981,7 @@
               },
               "topCategories": {
                 "type": "array",
-                "description": "11/17. 이번 주기 생활비 지출 상위 3개 (지출 0원 제외)",
+                "description": "이번 주기 생활비 지출 상위 3개 (지출 0원 제외)",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -17749,7 +19014,7 @@
               "vsPrev": {
                 "type": "object",
                 "nullable": true,
-                "description": "11/17. 지난 주기 같은 기간 대비. 지난 주기 거래가 없으면 null",
+                "description": "지난 주기 같은 기간 대비. 지난 주기 거래가 없으면 null",
                 "properties": {
                   "diff": {
                     "type": "integer",
@@ -17783,7 +19048,7 @@
           },
           "upcoming": {
             "type": "object",
-            "description": "11/17. mustPay 중 오늘 ~ 7일 뒤에 나갈 돈",
+            "description": "mustPay 중 오늘 ~ 7일 뒤에 나갈 돈",
             "properties": {
               "total": {
                 "type": "integer"
@@ -17851,7 +19116,7 @@
           },
           "paymentState": {
             "type": "string",
-            "description": "partial = 연결된 금액 합계가 예정 금액의 90%(올림) 미만. 90% 이상이면 paid라 목록에서 빠진다 (11/4).",
+            "description": "partial = 연결된 금액 합계가 예정 금액의 90%(올림) 미만. 90% 이상이면 paid라 목록에서 빠진다.",
             "enum": [
               "unpaid",
               "partial",
@@ -17890,7 +19155,7 @@
           },
           "userChecked": {
             "type": "boolean",
-            "description": "card_bill 의 amount 가 사용자 확인 '앞으로 낼 금액'인지 (11/06). '전부 냈어요'로 확인한 청구서는 목록에서 빠진다"
+            "description": "card_bill 의 amount 가 사용자 확인 '앞으로 낼 금액'인지. '전부 냈어요'로 확인한 청구서는 목록에서 빠진다"
           }
         },
         "required": [
@@ -18111,7 +19376,7 @@
           "lines",
           "updatedAt"
         ],
-        "description": "total·fixedAmount·previousTotal·unclassifiedAmount는 항상 전체 소비 기준. scope=category이면 categories는 해당 항목만(소비 없음은 빈 배열). 비교 불가이면 모든 비교 금액/차이/비율은 null. topSpending은 UNCLASSIFIED를 제외하고 동률 모두 포함, 단일 카테고리 또는 0원은 null. 소비가 없으면 total=0, categories=[], 0원 카드와 안내 문장을 준다. coverage는 1차에서 제외. 환불로 순소비가 음수인 경우 총액·순위·비율 표현은 미정이며 비음수 예시를 하한 정책으로 간주하지 않는다."
+        "description": "total·fixedAmount·previousTotal·unclassifiedAmount는 항상 전체 소비 기준. scope=category이면 categories는 해당 항목만(소비 없음은 빈 배열). 비교 불가이면 모든 비교 금액/차이/비율은 null. topSpending은 UNCLASSIFIED를 제외하고 동률 모두 포함, 단일 카테고리 또는 0원은 null. 소비가 없으면 total=0, categories=[], 0원 카드와 안내 문장을 준다."
       },
       "ChatTextContent": {
         "type": "object",
@@ -18906,12 +20171,12 @@
               "registered",
               "actual"
             ],
-            "description": "11/13. registered 등록 실수령액 · actual 이번 주기만 받은 월급(budget_cycle.income_basis)으로 나눔"
+            "description": "registered 등록 실수령액 · actual 이번 주기만 받은 월급(budget_cycle.income_basis)으로 나눔"
           },
           "cardReserved": {
             "type": "integer",
             "minimum": 0,
-            "description": "11/13. fixedTotal 안의 카드값(첫 청구서 선차감 + 이번 회차 할부금). 고정지출 = fixedTotal - cardReserved"
+            "description": "fixedTotal 안의 카드값(첫 청구서 선차감 + 이번 회차 할부금). 고정지출 = fixedTotal - cardReserved"
           }
         },
         "additionalProperties": false,
@@ -19185,7 +20450,7 @@
                 },
                 "reason": {
                   "type": "string",
-                  "description": "계산 보류 이유 (finance.card_deduction: first_connection_unknown · bill_history_incomplete · bill_scope_unknown · bill_due_date_unknown · first_bill_unavailable(이번 주기에 결제일인 청구서를 아직 찾지 못함 — 조회 실패 아님) · first_bill_ambiguous · spending_history_incomplete · bill_amount_invalid) · installment_amount_unknown(이번 회차 할부 금액을 모름) · card_data_invalid(연결·금액 자료가 맞지 않음) · card_assignment_required(거래별 결제 카드 확인 필요) · bill_total_mismatch(청구 총액이 상세 합계보다 작아 원래 청구액을 모름 — 0원 · 상세 합계로 정하지 않음, 11/06)"
+                  "description": "계산 보류 이유 (finance.card_deduction: first_connection_unknown · bill_history_incomplete · bill_scope_unknown · bill_due_date_unknown · first_bill_unavailable(이번 주기에 결제일인 청구서를 아직 찾지 못함 — 조회 실패 아님) · first_bill_ambiguous · spending_history_incomplete · bill_amount_invalid) · installment_amount_unknown(이번 회차 할부 금액을 모름) · card_data_invalid(연결·금액 자료가 맞지 않음) · card_assignment_required(거래별 결제 카드 확인 필요) · bill_total_mismatch(청구 총액이 상세 합계보다 작아 원래 청구액을 모름 — 0원 · 상세 합계로 정하지 않음)"
                 }
               }
             }
@@ -19204,11 +20469,11 @@
             "type": "string",
             "format": "uuid",
             "nullable": true,
-            "description": "11/09. 카드 내역을 서버가 뒤에서 불러오는 중이면 그 작업 ID(GET /api/tasks/<id>/), 아니면 null. 화면은 재조회를 권하지 않고 '불러오는 중'을 보여 준 뒤 작업이 끝나면 다시 읽는다"
+            "description": "카드 내역을 서버가 뒤에서 불러오는 중이면 그 작업 ID(GET /api/tasks/<id>/), 아니면 null. 화면은 재조회를 권하지 않고 '불러오는 중'을 보여 준 뒤 작업이 끝나면 다시 읽는다"
           },
           "budgetApproved": {
             "type": "boolean",
-            "description": "11/13. 이번 주기(진행 중)에 승인한 예산이 있는지. missing이 있으면 false"
+            "description": "이번 주기(진행 중)에 승인한 예산이 있는지. missing이 있으면 false"
           },
           "approvedBudgetUpdated": {
             "type": "boolean",
@@ -19339,7 +20604,7 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0,
-            "description": "11/12. fixed 중 '지난 카드값'(카드사 첫 청구서 선차감 + 가입 전 할부의 이번 회차). 없으면 0. 화면은 0보다 크면 고정비 줄과 나눠 보여 준다"
+            "description": "fixed 중 '지난 카드값'(카드사 첫 청구서 선차감 + 가입 전 할부의 이번 회차). 없으면 0. 화면은 0보다 크면 고정비 줄과 나눠 보여 준다"
           },
           "saving": {
             "type": "integer",
@@ -20395,7 +21660,7 @@
       },
       "BudgetCardNotes": {
         "type": "array",
-        "description": "보류는 아니고 알릴 카드 선차감 상태 (11/06). no_bill_in_cycle(이번 주기 마지막 날까지 조회했는데 결제일인 청구서 없음 → 0원) · first_budget_applied(앞선 주기 승인 예산에 이미 반영 → 0원) · before_first_connection(이 주기 뒤에 연결) · card_overlap_uncertain(청구서에 든 이번 주기 구매 중 생활비와 같은 지출인지 확인 못 한 amount 원 · count 건 — 빼지 않고 넉넉하게 잡음) · bill_items_incomplete(청구서 상세가 일부만 와서 빠진 항목은 모름 — amount · count 는 null) · foreign_amount_pending(이번 주기 외화 승인 중 원화 금액이 없어 쓴 돈에 넣지 못한 count 건 — amount 는 null, 11/07)",
+        "description": "보류는 아니고 알릴 카드 선차감 상태. no_bill_in_cycle(이번 주기 마지막 날까지 조회했는데 결제일인 청구서 없음 → 0원) · first_budget_applied(앞선 주기 승인 예산에 이미 반영 → 0원) · before_first_connection(이 주기 뒤에 연결) · card_overlap_uncertain(청구서에 든 이번 주기 구매 중 생활비와 같은 지출인지 확인 못 한 amount 원 · count 건 — 빼지 않고 넉넉하게 잡음) · bill_items_incomplete(청구서 상세가 일부만 와서 빠진 항목은 모름 — amount · count 는 null) · foreign_amount_pending(이번 주기 외화 승인 중 원화 금액이 없어 쓴 돈에 넣지 못한 count 건 — amount 는 null)",
         "items": {
           "type": "object",
           "required": [
@@ -20781,24 +22046,547 @@
             "description": "기존 승인 예산의 저축액을 고정지출 제외 배분액으로 나눈 비율. 사용자가 고른 savingPercent와 구분한다."
           }
         }
+      },
+      "SalaryDeposit": {
+        "type": "object",
+        "required": [
+          "transactionId",
+          "payCycleOn",
+          "date",
+          "amount",
+          "description",
+          "account",
+          "decision",
+          "isPattern",
+          "isCandidate",
+          "patternUnusableReason"
+        ],
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payCycleOn": {
+            "type": "string",
+            "format": "date",
+            "description": "귀속 급여 회차 = 급여 주기 시작일"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "입금 적요"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountDisplay"
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "confirmed",
+              "auto",
+              "rejected",
+              "recheck",
+              null
+            ]
+          },
+          "isPattern": {
+            "type": "boolean"
+          },
+          "isCandidate": {
+            "type": "boolean"
+          },
+          "patternUnusableReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "이 적요를 자동 인식 기준으로 못 쓰는 이유. 쓸 수 있으면 null"
+          }
+        }
+      },
+      "SalaryDepositsResponse": {
+        "type": "object",
+        "required": [
+          "windows",
+          "pattern"
+        ],
+        "properties": {
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "payCycleOn",
+                "from",
+                "to",
+                "items"
+              ],
+              "properties": {
+                "payCycleOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "from": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "to": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SalaryDeposit"
+                  }
+                }
+              }
+            }
+          },
+          "pattern": {
+            "type": "object",
+            "nullable": true,
+            "description": "자동 인식 기준 입금 (SalaryDeposit과 같은 모양). 없으면 null"
+          }
+        }
+      },
+      "SalaryDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transactionIds",
+          "decision"
+        ],
+        "properties": {
+          "transactionIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 31,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "rejected",
+              "none"
+            ]
+          },
+          "usePattern": {
+            "type": "boolean",
+            "description": "confirmed에서만. 이 입금을 자동 인식 기준으로"
+          }
+        }
+      },
+      "SalaryDecisionResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SalaryDepositsResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "basisReset"
+            ],
+            "properties": {
+              "basisReset": {
+                "type": "boolean",
+                "description": "이 판단으로 '이번 주기만 받은 금액' 기준이 풀렸으면 true"
+              }
+            }
+          }
+        ]
+      },
+      "SalaryGapRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "answer",
+          "salaryAmount"
+        ],
+        "properties": {
+          "answer": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "keep"
+            ]
+          },
+          "salaryAmount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "화면이 본 받은 금액(salaryGap.received)"
+          }
+        }
+      },
+      "SalaryGapResponse": {
+        "type": "object",
+        "required": [
+          "incomeBasis",
+          "salaryAmount"
+        ],
+        "properties": {
+          "incomeBasis": {
+            "type": "integer",
+            "nullable": true,
+            "description": "이번 주기 예산 기준 금액. 등록 실수령액 기준이면 null"
+          },
+          "salaryAmount": {
+            "type": "integer"
+          }
+        }
+      },
+      "CushionResponse": {
+        "type": "object",
+        "required": [
+          "missing",
+          "cushion",
+          "savings",
+          "notices"
+        ],
+        "properties": {
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "takeHomeIncome",
+                "cushionMonthly"
+              ]
+            }
+          },
+          "cushion": {
+            "type": "object",
+            "required": [
+              "now",
+              "goal",
+              "goalLabel",
+              "goalCustom",
+              "defaultGoal",
+              "bar",
+              "pct",
+              "monthly",
+              "useRule",
+              "remain",
+              "eta",
+              "etaMonths"
+            ],
+            "properties": {
+              "now": {
+                "type": "integer",
+                "description": "확보액(원). 기록 합계 그대로이며 음수도 숨기지 않는다"
+              },
+              "goal": {
+                "type": "integer",
+                "nullable": true
+              },
+              "goalLabel": {
+                "type": "string",
+                "enum": [
+                  "월급의 3배",
+                  "직접 정한 금액"
+                ]
+              },
+              "goalCustom": {
+                "type": "boolean"
+              },
+              "defaultGoal": {
+                "type": "integer",
+                "nullable": true,
+                "description": "월급 × 3. 소득 미설정이면 null"
+              },
+              "bar": {
+                "type": "number",
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 100
+              },
+              "pct": {
+                "type": "integer",
+                "nullable": true
+              },
+              "monthly": {
+                "type": "integer",
+                "nullable": true
+              },
+              "useRule": {
+                "nullable": true,
+                "description": "사용 정책 코드. 현재 항상 null"
+              },
+              "remain": {
+                "type": "integer",
+                "nullable": true
+              },
+              "eta": {
+                "type": "string"
+              },
+              "etaMonths": {
+                "type": "integer",
+                "nullable": true
+              }
+            }
+          },
+          "savings": {
+            "type": "object",
+            "required": [
+              "items",
+              "total",
+              "unknownCount",
+              "asOf"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "accountId",
+                    "displayName",
+                    "status",
+                    "organizationName",
+                    "balance",
+                    "fetchedAt"
+                  ],
+                  "properties": {
+                    "accountId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "connected",
+                        "relogin",
+                        "disconnected"
+                      ]
+                    },
+                    "organizationName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "balance": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "원화 잔액. 모르거나 외화면 null"
+                    },
+                    "fetchedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              },
+              "total": {
+                "type": "integer",
+                "nullable": true
+              },
+              "unknownCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "asOf": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              }
+            }
+          },
+          "notices": {
+            "type": "object",
+            "required": [
+              "depositDue",
+              "balanceLow"
+            ],
+            "properties": {
+              "depositDue": {
+                "type": "boolean"
+              },
+              "balanceLow": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "CushionGoalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "goalAmount"
+        ],
+        "properties": {
+          "goalAmount": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 10000,
+            "maximum": 1000000000
+          }
+        }
+      },
+      "PolicyRegionsResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "name",
+                "regions"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "regions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "code",
+                      "name"
+                    ],
+                    "properties": {
+                      "code": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "SavedPolicy": {
+        "type": "object",
+        "required": [
+          "savedPolicyId",
+          "policyNo",
+          "name",
+          "applyState",
+          "applyEnd",
+          "link",
+          "active",
+          "region",
+          "supportType",
+          "support",
+          "savedAt"
+        ],
+        "properties": {
+          "savedPolicyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyNo": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "applyState": {
+            "type": "string",
+            "enum": [
+              "open",
+              "always",
+              "upcoming",
+              "unknown",
+              "closed"
+            ],
+            "description": "신청 중 · 상시 · 신청 예정 · 기간 확인 필요 · 마감"
+          },
+          "applyEnd": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "마지막 신청 마감일. 상시·기간 모름이면 null"
+          },
+          "link": {
+            "type": "string",
+            "nullable": true,
+            "description": "신청 주소, 없으면 참고 주소"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "정책 수집에서 사라졌으면 false"
+          },
+          "region": {
+            "type": "string",
+            "nullable": true,
+            "description": "대상 지역 한 줄 (전국 · 서울특별시 · 경기도 수원시 외 2곳 …)"
+          },
+          "supportType": {
+            "type": "string",
+            "nullable": true,
+            "description": "대출·보증일 때만 (대출 · 상환 필요 / 대출 보증 · 지원금 아님)"
+          },
+          "support": {
+            "type": "string",
+            "nullable": true,
+            "description": "지원 내용 앞부분 (원문을 자르기만 함)"
+          },
+          "savedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SavedPolicyListResponse": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedPolicy"
+            }
+          }
+        }
       }
     }
   },
   "x-source-sha256": {
-    "docs/API_RULES.md": "1920a1e06660e6e0ef4c089d56b3dcf4fb84c35b43195c91cbbc9e3008854aab",
-    "docs/api/README.md": "d2d07b51a05cb750fdbaec0346d4a1e45d4e00722a3151bccd684ae707ada7d6",
-    "docs/api/salary.md": "1f65120db71f7626d075dc4147644d4987f294e8fb16bbd3533aca6731a29e3e",
-    "docs/api/spending-analysis.md": "cc00337b6977a5e7eae24f66d41f2d64b7643bda3038958ea24baba078e9f1ab",
-    "docs/결정기록_2026-10-21.md": "eced1eb6db628a785ed3643012f469329475cad84a86d972bbc5c2cadad2a58e",
-    "docs/api/auth.md": "fb25c9473822ae1e3e83e50f85cb138484c1b58b54301ab9b62860b5439cfe92",
-    "docs/api/finance-connect.md": "a26dbe3b1a45f4f443f7bab03816bfffb7828c82e9d9c62f8605d921ebbb7576",
-    "docs/api/cards.md": "9b03a770b42b5152316f86175f53882febc7eb2d9a24e6608e46fb8e574f4343",
-    "docs/api/loans.md": "fc16dd8767564035b5afb0e66c90ed27099b5eba510f13a2d497cc5b265c9c7b",
-    "docs/api/transactions.md": "dea2cef12825b7d03de455f0b3e516f91d637040f38dc0370d089a0514d92118",
-    "docs/api/fixed.md": "4761f8ff5a9444e033ea0aa980144f342db126e1732bb1f34452df46de08fae3",
-    "docs/api/savings.md": "93e8ae07ea0c828d2ad0bce903970968bfce322cc31abc211e944201ed150223",
-    "docs/api/home.md": "118b3ec1bff43b505f92ca53cb0ee68f0785a031767773291d08f81a31b38b52",
-    "docs/api/chat.md": "29db2b02a86c78ceb79a6b6afd9b2131b2e5f4eefa7b8dc05af75d50524e0831",
-    "docs/api/budgets.md": "b66cb27622b3e593bc0de492ad998abb34c5c4a84d3c0bb31bbca79b9459c691"
+    "docs/API_RULES.md": "7779163b6ea1ab457d77368c4f15535797b188213e8e7fc6770212441630276c",
+    "docs/api/README.md": "c33de12f8184ba68ec7c88ecf14cd9c1a3ce980c98e6ebd425c36a913b051843",
+    "docs/api/auth.md": "12c57514302dae0d25ac6e4a18e6640434e1a571e9fc63607096520bff7157d0",
+    "docs/api/profile.md": "2f928de3be942423aa5a1201fd218d6f128e2c1cd37285f63cb827d3b1e17575",
+    "docs/api/finance-connect.md": "f1cdacfa80ef7615eeb14b6ad1d408999a400a0146b1ca7c074a3f96b9faaaae",
+    "docs/api/cards.md": "d6301e739fdb67fb69e671c2b60569051d4fcbe31e403ee2c65313f97908f24c",
+    "docs/api/loans.md": "b825be22fb786fe5cfdfa32ca0895f5d6b5c92410fc470ae900116fe0a57c498",
+    "docs/api/transactions.md": "bdaa65563c397e65da1d9d6246eed4fa29f666fcf81d6135d9d37ae05bd6f265",
+    "docs/api/fixed.md": "eb48c9f56aadcdca3599449e478efd4627d35cc00a1f61c7ca974523baddc659",
+    "docs/api/savings.md": "f1ed2991c55c7d22e3a909573974f7b0c0bbcf717b21520c35dd47d47fd6068b",
+    "docs/api/home.md": "dc8e0489f0f8be10aa8b5d4ab705c73a3e94a92a879f5b1b5bdc962e8b001c3a",
+    "docs/api/chat.md": "0a4896df90360da520ff9cab6545da83649fe10e38e4d0f821383f1dbbfa0a89",
+    "docs/api/budgets.md": "abf8be089f7e1e4d8251e8d2558865998dbc0fbf4684c9e1f2853f115d2da09f",
+    "docs/api/salary.md": "ccc5231ca19d39476589c8c2cace6c8c2fe35cea865236dbb18ac8d03dceda8b",
+    "docs/api/cushion.md": "1a4428ec2329315d822b850c7e7c2bb6d0fa6aba8a3546db9e6bbf7a03db5ede",
+    "docs/api/policies.md": "f3db93422ddc882fda06c164d184d7dbc83667190d46622a0328381e5c7122ab"
   }
 }

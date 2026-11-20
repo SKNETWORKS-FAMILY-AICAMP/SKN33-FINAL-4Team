@@ -1,5 +1,7 @@
 # 내 정보 API
 
+> 공통 규칙은 [API_RULES.md](../API_RULES.md), 전체 목록은 [README.md](README.md)를 따른다.
+
 화면: `frontend/src/pages/ProfilePage.jsx`. 공통 규칙: `docs/API_RULES.md`.
 
 ## GET · PUT `/api/profile/`
@@ -24,7 +26,7 @@ PUT은 이 API가 관리하는 일곱 항목의 전체 교체다. 누락·null�
 | `gender` | 문자열 | `male` 남성 / `female` 여성 |
 | `housingType` | 문자열 | `alone` 자취 / `family` 본가 거주 |
 | `hasCar` | boolean | true 보유 / false 미보유. 0·1·문자열 불가 |
-| `regionCode` | 문자열 | 사는 지역 시군구 코드 (2026-11-11). `GET /api/policies/regions/`(`docs/api/policies.md`)의 `regions[].code` 만. 시도 코드·없는 코드는 400 |
+| `regionCode` | 문자열 | 사는 지역 시군구 코드. `GET /api/policies/regions/`(`docs/api/policies.md`)의 `regions[].code` 만. 시도 코드·없는 코드는 400 |
 | `priorities` | 배열 | 3~8개, `category`와 정수 `rank` |
 | `categoryMinimums` | 배열 | 0~9개, `category`와 정수 `minAmount` |
 
@@ -104,9 +106,3 @@ GET과 PUT 모두 위 예시와 같은 일곱 필드와 `regionName`("서울특�
   }
 }
 ```
-
-## 의존성과 범위
-
-- 최신 main에서 시작하며 PR #54의 `housing_type` 모델 정의와 `users/0009_financialprofile_housing_type`을 그대로 재사용한다. 다른 이름의 중복 마이그레이션은 만들지 않는다.
-- #54의 예산 명세·자물쇠 모델 변경은 이 작업에 포함하지 않는다.
-- Swagger 구현 상태·생성 파일과 프런트는 수정하지 않는다.

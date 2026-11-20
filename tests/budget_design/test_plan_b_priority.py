@@ -240,7 +240,7 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(proportional['result']['allocations']['FOOD'], 320_000)
 
     def test_surplus_start_and_free_money_preserve_settings_and_ledger(self):
-        from budgets.test_design_explain import assert_ledger
+        from budgets.tests.test_design_explain import assert_ledger
         data, history, _, _, _ = scenario('surplus')
         data['minimums'] = {'FOOD':450001}
         data['locks'] = {'EDUCATION':120002}
@@ -268,7 +268,7 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(sum(out['allocations'].values()),1200000)
 
     def test_surplus_applies_system_floor_but_lock_wins(self):
-        from budgets.test_design_explain import assert_ledger
+        from budgets.tests.test_design_explain import assert_ledger
         data,history,_,_,_ = scenario('surplus')
         out=self.build(inp=data,months=history,reality_profile={'has_vehicle':False})
         self.assertEqual(out['allocations']['TRANSPORT_CAR'],0)
@@ -407,7 +407,7 @@ class PriorityTests(unittest.TestCase):
         for name in ('increase', 'top', 'undo', 'travel'):
             out = self.build(name)
             rows = {r['category']: r for r in out['explanations']}
-            from budgets.test_design_explain import assert_ledger
+            from budgets.tests.test_design_explain import assert_ledger
             assert_ledger(self, out['explanations'], out['allocations'])
             if name == 'increase':
                 self.assertEqual(rows['FASHION_SHOPPING']['text'], '')
@@ -467,7 +467,7 @@ class PriorityTests(unittest.TestCase):
             if out['status'] != 'proposed':
                 continue
             self.assertEqual(sum(out['allocations'].values())+out['unallocated'],data['target'])
-            from budgets.test_design_explain import assert_ledger
+            from budgets.tests.test_design_explain import assert_ledger
             assert_ledger(self, out['explanations'], out['allocations'])
             for code, amount in out['allocations'].items():
                 self.assertGreaterEqual(amount,data['minimums'].get(code,0))

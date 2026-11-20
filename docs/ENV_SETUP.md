@@ -1,137 +1,139 @@
-# 개발 환경 · 환경변수 설정 가이드
+# 환경변수 설정 가이드
 
-머니쿠션 로컬 개발 환경을 준비하고 `.env`를 설정하는 방법을 정리한다.
-
-> 처음 세팅한다면 OS별 단계 가이드 [`LOCAL_SETUP.md`](LOCAL_SETUP.md)부터 따라 한다.
+서버는 프로젝트 루트의 `.env`를 읽는다 (템플릿: [`.env.example`](../.env.example)). 처음 세팅한다면 OS별 단계 가이드 [`LOCAL_SETUP.md`](LOCAL_SETUP.md)부터 따라 한다.
+화면(`frontend/`)은 환경변수 없이 동작한다.
 
 | 항목 | 기준 |
 |---|---|
-| Python | **3.12** |
-| 웹 프레임워크 | Django 5.2 LTS + DRF (API) · 화면은 React (`frontend/`, 환경변수 없음) |
-| DB | PostgreSQL |
-| 의존성 | 프로젝트 루트 `requirements.txt` |
-| 환경변수 | 프로젝트 루트 `.env` (템플릿: `.env.example`) |
-
----
-
-## 1. 빠른 시작
-
-프로젝트 루트에서 실행한다.
-
-```bash
-# 1) 가상환경 생성 (Python 3.12)
-python3.12 -m venv .venv          # Windows: py -3.12 -m venv .venv
-source .venv/bin/activate         # Windows PowerShell: .venv\Scripts\Activate.ps1
-
-# 2) 의존성 설치
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-
-# 3) .env 만들기
-cp .env.example .env              # Windows: copy .env.example .env
-
-# 4) Django 시크릿 키 생성 → 출력값을 .env의 DJANGO_SECRET_KEY에 붙여넣기
-python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
-```
-
-> Python 3.12가 없으면 macOS는 `brew install python@3.12`, Windows는 python.org 설치 파일을 사용한다.
-
----
-
-## 2. 환경변수 목록
-
-### 지금 필요한 값
-
-| 변수 | 필수 | 로컬 예시 | 설명 |
-|---|---|---|---|
-| `DJANGO_SECRET_KEY` | ✅ | (1-4에서 생성한 값) | Django 서명·세션 암호화 키. 팀원마다 각자 생성해도 됨 |
-| `DJANGO_DEBUG` | ✅ | `True` | 로컬 `True`, 배포 `False` |
-| `DJANGO_ALLOWED_HOSTS` | ✅ | `localhost,127.0.0.1` | 접속 허용 호스트. 쉼표로 구분 |
-| `DJANGO_CSRF_TRUSTED_ORIGINS` | 배포 시 | `https://도메인` | HTTPS 배포 주소. 로컬은 비워둠 (DEBUG면 React 개발 서버 `localhost:5173`은 자동 허용) |
-| `DJANGO_ADMIN_URL` | 배포 시 | (비워둠 → `admin/`) | 관리자 화면 주소. 배포 때는 추측하기 어려운 값(예: `python -c "import secrets; print(secrets.token_urlsafe(12))"` 출력)으로 바꾸고 Git·채팅에 올리지 않음. `api`로 시작하면 서버가 안 켜짐 |
-| `POSTGRES_DB` | ✅ | `money_cushion` | DB 이름 |
-| `POSTGRES_USER` | ✅ | `money_cushion` | DB 사용자 |
-| `POSTGRES_PASSWORD` | ✅ | (각자 설정) | DB 비밀번호 |
-| `POSTGRES_HOST` | ✅ | `localhost` | 배포 시 RDS 엔드포인트 |
-| `POSTGRES_PORT` | ✅ | `5432` | DB 포트 |
-| `CONNECTED_ID_ENCRYPTION_KEY` | ✅ | (`.env.example`의 명령으로 생성) | 회원별 CODEF 연결 ID 암호화 키 (32바이트). 바꾸면 저장된 연결을 못 읽음 |
-| `IDENTIFIER_HMAC_KEY` | ✅ | (같은 명령으로 한 번 더 생성) | 계좌 · 대출 · 카드 번호 중복 확인 키용 HMAC 키 (32바이트). 위 키와 다른 값. 바꾸면 금융 데이터를 지우고 다시 연결해야 함 |
-
-### 외부 API (발급 후 입력)
-
-| 변수 | 발급처 | 설명 |
-|---|---|---|
-| `CODEF_ENV` | — | `sandbox` · `demo` · `product` 중 하나. 비우면 `demo` |
-| `CODEF_DEMO_ID` | codef.io > MY > 키관리 | 데모 버전 client_id |
-| `CODEF_DEMO_SECRET` | codef.io > MY > 키관리 | 데모 버전 client_secret |
-| `CODEF_CONNECTED_ID` | `python manage.py codef_connect` 결과 | 테스트용 은행 계정 연결 ID (개인별) |
-| `CODEF_PUBLIC_KEY` | CODEF 개발자센터 | 계정 비밀번호 RSA 암호화용 공개키 |
-| `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 | 상가(상권)정보 · 복지서비스 API 공통 인증키 (활용 신청은 API별로 따로) |
-
-### 제공자 확정 후 추가
-
-| 변수 | 설명 |
-|---|---|
-| `KAKAO_REST_API_KEY` | 검색/지도 API (카카오 기준. 네이버로 정하면 `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET`) |
-| AWS 관련 (S3 · SQS 등) | 배포 구조 확정 후 추가 |
+| 읽는 곳 | `backend/config/settings.py` (`load_dotenv(BASE_DIR.parent / ".env")`, `BASE_DIR = backend/`) |
+| 필수 값 검사 | 비어 있으면 서버를 켤 때 `ImproperlyConfigured`로 바로 알려 준다 |
+| 기본 상태 | 필수 값만 채우면 챗봇은 가짜 해석(`CHAT_LLM=fake`), 예산 A/B 설계 · 외부 호출은 꺼진 상태로 켜진다 |
 
 > 새 환경변수를 추가하면 **`.env.example`과 이 문서를 함께 갱신**한다. 값은 비워서 올린다.
 
-### 예산 조정 챗봇 연결
+---
 
-청년 정책 추천도 `CHAT_ENGINE=router`, `CHAT_LLM=live`에서 사용한다. `OPENAI_API_KEY`, `LLM_MODEL`에 더해
-`EMBEDDING_MODEL`이 필요하며, 공유 정책 덤프의 임베딩 모델과 같은 값(`text-embedding-3-small`)을 설정한다.
-정책 데이터는 `docs/agents/청년정책.md`의 복원 절차에 따라 DB에 한 번 적재한다. 모델 설정이 없거나 비어 있으면
-정책 검색은 기존 실패 안내로 응답한다. 서버가 켜지는 것만으로 정책 검색 설정까지 확인되는 것은 아니다.
+## 1. 필수 값
 
-예산 조정 LangSmith 추적은 선택 기능이다. 기존 SDK 설치 명령은
-`pip install -r backend/budgets/requirements-observability.txt`이다.
-다음 값을 프로젝트 루트 `.env`에 설정하고 백엔드를 재시작한다.
+| 변수 | 로컬 예시 | 설명 |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | (생성한 값) | Django 서명 · 세션 키. `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"` |
+| `POSTGRES_DB` | `money_cushion` | DB 이름 |
+| `POSTGRES_USER` | `money_cushion` | DB 사용자 |
+| `POSTGRES_PASSWORD` | (각자 설정) | DB 비밀번호 |
+| `CONNECTED_ID_ENCRYPTION_KEY` | (생성한 값) | 회원별 CODEF 연결 ID 암호화 키 (32바이트). 바꾸면 저장된 연결을 못 읽는다 |
+| `IDENTIFIER_HMAC_KEY` | (생성한 값) | 계좌 · 대출 · 카드 번호 중복 확인 키용 HMAC 키 (32바이트). **위 키와 다른 값**이어야 서버가 켜진다. 바꾸면 같은 계좌 · 카드가 새로 저장된다 |
+
+32바이트 키 만들기 (두 번 실행해 서로 다른 값을 넣는다):
+
+```bash
+python -c "import secrets,base64;print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+```
+
+## 2. Django · DB 기본값
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `DJANGO_DEBUG` | `False` | 로컬은 `True`, 배포는 `False`. `.env`가 없는 서버에서 실수로 켜지지 않게 기본값이 `False`다 |
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | 접속 허용 호스트. 쉼표로 구분 |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | (비움) | HTTPS 배포 주소. 로컬은 비워 둔다 (DEBUG면 `localhost:5173`은 자동 허용) |
+| `DJANGO_ADMIN_URL` | `admin/` | 관리자 화면 주소. 배포 때는 추측하기 어려운 값으로 바꾼다. `api`로 시작하면 서버가 켜지지 않는다 |
+| `POSTGRES_HOST` | `localhost` | 배포 시 RDS 엔드포인트 |
+| `POSTGRES_PORT` | `5432` | DB 포트 |
+| `TASKS_INLINE` | `False` | `True`면 오래 걸리는 작업(금융 동기화 · 추천 등)을 백그라운드 스레드 대신 요청 안에서 끝까지 실행한다. 테스트 실행 때는 자동으로 켜진다 |
+
+## 3. 기능별 선택 값
+
+### 금융 조회 (CODEF)
+
+| 변수 | 설명 |
+|---|---|
+| `CODEF_ENV` | `sandbox` · `demo` · `product` 중 하나. 비우면 `demo` |
+| `CODEF_DEMO_ID` · `CODEF_DEMO_SECRET` | 데모 버전 client_id · client_secret (codef.io > MY > 키관리) |
+| `CODEF_PUBLIC_KEY` | 금융사 비밀번호 RSA 암호화용 공개키 (전체를 한 줄로) |
+| `CODEF_CONNECTED_ID` | 개발용 확인 명령(`codef_check`)이 쓰는 연결 ID. `python manage.py codef_connect`로 받는다. 서비스 화면의 연결은 회원별로 DB에 저장되므로 이 값과 무관하다 |
+| `CODEF_CARD_NO` · `CODEF_CARD_PASSWORD` | `codef_card_check --card-auth` 명령 전용. 조회 때 카드 번호 · 비밀번호를 요구하는 카드사 확인용 |
+
+### 통합 챗봇 · LLM
+
+| 변수 | 값 | 설명 |
+|---|---|---|
+| `CHAT_ENGINE` | `legacy`(기본) · `router` | `router`에서 라우터가 소비 분석 · 예산 조정 · 청년 정책으로 연결한다 |
+| `CHAT_LLM` | `fake`(기본) · `live` | `fake`는 정해 둔 해석만 하는 개발 · 테스트용(네트워크 없음). `live`는 실제 LLM |
+| `OPENAI_API_KEY` · `LLM_MODEL` | `LLM_MODEL=gpt-6-luna` | `CHAT_LLM=live`면 둘 다 필요하다 (없으면 서버가 켜지지 않음). 예산 설계 외부 보정도 이 키를 쓴다 |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | 청년 정책 검색용. **정책 데이터를 적재할 때 쓴 모델과 같아야** 한다 |
+| `CHAT_EXPLAIN_PLAN` | `on` / 비움 | 원인 가설을 말한 설명 질문("배달 때문이야?")을 LLM 계획 · 답으로 확인한다 |
+| `CHAT_AGENT` | `on` / 비움 | 소비 분석 첫 조회 뒤 필요할 때만 판단 1회 + 추가 조회 1회를 한다 |
+
+청년 정책 추천은 `CHAT_ENGINE=router` · `CHAT_LLM=live` · `EMBEDDING_MODEL`에 더해 DB에 정책 데이터가 적재되어 있어야 한다. 정책 데이터는 저장소에 없으며 적재 방법은 [`agents/청년정책.md`](agents/청년정책.md)를 본다. 데이터가 없으면 정책 검색은 찾지 못했다는 안내로 응답하고, 소비 분석 · 예산 기능은 그대로 동작한다.
+
+### 거래 분류
+
+| 변수 | 설명 |
+|---|---|
+| `SPENDING_MODEL_PATH` | 거래 분류 SVM 모델 파일 경로. 비우면 `local_workspace/models/spending_classifier/...` 기본 위치. 모델 파일은 Git에 없다 ([`ML_MODELS.md`](ML_MODELS.md)) |
+| `SPENDING_CONFLICTS_PATH` | 학습 데이터 라벨 충돌 목록(`label_conflicts.csv`) 경로. 비우면 기본 위치 |
+| `KAKAO_REST_API_KEY` | 카카오 로컬 검색 (가게 이름으로 업종 찾기) |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 지역 검색 (카카오 보완) |
+| `TYPESAFE_API_KEY` · `JEV_MODEL` | 검색 결과로도 못 정한 거래를 Jev로 판단한다. 없으면 '확인 필요'로 남긴다 |
+
+### 예산 설계 (A/B)
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `BUDGET_DESIGN_ENABLED` | `false` | `true`면 예산 A/B 설계를 쓴다. 끄면 임시 비율 추천 경로 |
+| `BUDGET_DESIGN_EXTERNAL_ENABLED` | `false` | 외부 LLM 보정 허용. 사용자의 예산 설계 AI 동의가 별도로 필요하다. 끄면 새 동의 · 외부 호출을 모두 막고 기존 동의 철회만 허용한다 |
+| `BUDGET_INFERENCE_PYTHON` | `local_workspace/.venv-budget-inference/...` | CatBoost 추론용 Python 실행 파일 ([추론 의존성](../scripts/budget_allocation/requirements-inference.txt)) |
+| `BUDGET_MODEL_PATH` | (스크립트 기본 위치) | 예산 배분 모델 파일 경로. 추론 스크립트(`scripts/budget_design/`)가 읽는다 |
+| `BUDGET_DESIGN_POLICY` | (코드 기본 정책) | 설계 정책을 JSON으로 덮어쓸 때만 넣는다 |
+
+### 예산 조정
+
+| 변수 | 설명 |
+|---|---|
+| `BUDGET_ADJUST_ALLOCATOR` | 선택. 같은 그룹 안의 감액 함수(dotted path). 기본은 `budgets.adjustment_core.calculation.proportional_group_reduction` (감액 가능액에 비례, 1만 원 우선 · 5천 원 보완). `(group, required, capacities)`를 받아 `{reductions, remaining}`을 돌려준다 |
+| `BUDGET_ADJUST_REFERENCE_PROVIDER` | 선택. 최초 예산에 ML 참조가 없을 때 1회 보완하는 함수(dotted path). 비우면 `design_service.reference_from_initial_input`을 쓴다 |
+| `BUDGET_PRICE_REFERENCE_PATH` | 선택. 가격 근거 검토용 스냅샷 JSON 경로. 아래 "가격 근거 예산 검토" 참고 |
+
+실제 LLM 예산 조정은 `CHAT_ENGINE=router` · `CHAT_LLM=live`에 더해 사용자의 **예산 조정 AI 동의**가 필요하다 (예산 설계 AI 동의와 별개).
+
+### 소비 분석 ML 비교
+
+| 변수 | 설명 |
+|---|---|
+| `SPENDING_REFERENCE_ROOT` | 월 소비 비교 모델(모델 C) · 메타데이터 폴더. 비우면 `local_workspace/models/living_expense_prediction` |
+| `BUDGET_INFERENCE_PYTHON` | 위 예산 설계와 같은 추론 환경을 쓴다 |
+
+파일이나 추론 환경이 없으면 ML 비교만 건너뛰고 나머지 분석은 그대로 답한다.
+
+### 시연 계정 · 배포
+
+| 변수 | 쓰는 곳 |
+|---|---|
+| `DEMO_LOGIN_PASSWORD` | `python manage.py seed_persona <a·b·c> --apply` — 시연 계정 비밀번호. `.env`에 두지 않고 명령 실행 때만 넣는다 |
+| `ALPHA_LOGIN_PASSWORD` | `python manage.py seed_alpha_home` — 알파 테스트 계정 비밀번호 |
+| `RELEASE_TAG` | 배포 이미지 버전. 배포 서버의 상태 확인 주소가 이 값을 돌려준다 ([AWS 배포](AWS_DEPLOYMENT_GUIDE.md)) |
+
+`spending_fixture/service_settings.py`가 읽는 `CHAT_TODAY` · `CHAT_LLM_LEDGER` · `CHAT_LLM_MAX_CALLS` · `FIXTURE_LIVE_LLM`, `chat/live_collab_check.py`가 읽는 `COLLAB_LIVE` · `COLLAB_LIVE_MAX_CALLS`는 합성 데이터 검증 전용이라 서비스 `.env`에는 넣지 않는다.
+
+### 예산 조정 LangSmith 추적 (선택, 기본 꺼짐)
+
+질문 원문과 예산 · 재정 정보가 LangSmith로 추가 전송되므로 개발 · 합성 검증 환경에서만 켠다. 먼저 `pip install -r backend/budgets/requirements-observability.txt`로 SDK를 설치하고 아래 값을 넣은 뒤 서버를 다시 켠다.
 
 ```dotenv
 BUDGET_ADJUST_LANGSMITH=true
 BUDGET_ADJUST_LANGSMITH_PROJECT=budget-adjustment
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=<개인 LangSmith 키>
+# LANGSMITH_ENDPOINT · LANGSMITH_WORKSPACE_ID 는 필요할 때만
 ```
 
-`BUDGET_ADJUST_LANGSMITH` 기본값은 false이며 두 추적 스위치가 모두 true여야 기록한다.
-기존 `LANGSMITH_ENDPOINT`, `LANGSMITH_WORKSPACE_ID`가 있으면 같은 값을 사용한다.
-LangSmith의 `budget-adjustment` 프로젝트에서 `budget_adjustment` 실행을 열면 질문과
-조정 핸들러의 최종 `reply`를, 하위 `budget_adjust*` LLM 실행에서 전달한 프롬프트·대화 맥락·
-원본 출력·처리 시간을 확인할 수 있다. 최종 `reply`는 서버의 카드·질문 데이터이며 DOM 캡처는 아니다.
-대화 식별자는 해시한 `session_id`로 묶는다. 라우터·소비 분석 호출은 이 추적 범위 밖이다.
+- `BUDGET_ADJUST_LANGSMITH`와 `LANGSMITH_TRACING`이 **둘 다** `true`여야 기록한다.
+- `budget-adjustment` 프로젝트의 `budget_adjustment` 실행에서 질문 · 최종 응답을, 하위 `budget_adjust*` 실행에서 프롬프트 · 대화 맥락 · 원본 출력 · 처리 시간을 본다. 라우터 · 소비 분석 호출은 추적하지 않는다.
+- 은행 연결 · 예산 조정 AI 동의 검사는 추적보다 먼저 실행한다. 운영에서 켜기 전에는 LangSmith 전송 · 보관 범위에 대한 동의를 따로 확인해야 한다.
+- 추적이 실패해도 LLM 호출을 반복하거나 조정 결과를 실패로 바꾸지 않는다. 끄려면 `BUDGET_ADJUST_LANGSMITH=false`로 바꾸고 다시 켠다.
 
-원문과 예산·재정 관련 정보가 LangSmith로 추가 전송되므로 개발·합성 검증 환경에서 명시적으로 켠다.
-서비스의 기존 은행 연결·예산 조정 AI 동의 검사는 추적 시작보다 먼저 실행한다.
-운영 활성화 전에는 LangSmith의 별도 전송·보관·동의 범위를 확인해야 하며, 기존 OpenAI 동의를
-LangSmith까지 자동으로 확장한 것으로 해석하지 않는다. 키·토큰은 추적에 넘기지 않는다.
-추적 실패는 경고에 오류 종류만 남기며 LLM 호출을 반복하거나 조정 결과를 실패로 바꾸지 않는다.
-전송은 SDK 백그라운드 큐를 사용하므로 프로세스를 강제 종료하면 아직 전송되지 않은 기록은 누락될 수 있다.
-끄려면 `BUDGET_ADJUST_LANGSMITH=false`로 바꾸고 재시작한다. 과거 미기록 원본은 복원하지 않는다.
-수동 추적 방식은 [LangSmith 공식 문서](https://docs.langchain.com/langsmith/annotate-code)를 따른다.
-
-| 변수 | 값·역할 |
-|---|---|
-| `CHAT_ENGINE` | `router`에서 실제 조정 대화·카드를 연결한다. `legacy`는 이전 안내 흐름이다. |
-| `CHAT_LLM` | 일반 자유 입력은 `live`. `fake`는 명시한 합성 테스트 문장용이다. |
-| `OPENAI_API_KEY`, `LLM_MODEL` | 서버의 실제 해석기 설정. 키·원본 프롬프트는 로그와 프론트에 보내지 않는다. |
-| `BUDGET_ADJUST_ALLOCATOR` | 선택 사항. 같은 그룹의 감액 함수(callable 또는 dotted path). 기본은 `budgets.adjustment_core.calculation.proportional_group_reduction`이며, 감액 가능액에 비례한 몫을 1만 원 우선·5천 원 보완으로 나눈다. `(group, required, capacities)`를 받아 `{reductions, remaining}`을 반환한다. 그룹 순서·순위 자격·보호 하한은 별도로 검수하며 최초 설계 A/B를 재선택하지 않는다. |
-| `BUDGET_ADJUST_REFERENCE_PROVIDER` | 선택 사항. 최초 예산에 ML 참조가 없을 때 1회 보완하는 함수(callable 또는 dotted path). 미설정이면 통합된 `design_service.reference_from_initial_input`이 있을 때 사용한다. 최초 저장 `engine_input`으로 실제 ML 금액/비율과 모델 ID·체크섬을 반환한다. 성공·실패 시도는 최초 스냅샷 메타에 기록하며, 원 입력·예산액·프로필은 바꾸지 않는다. 합성·임시 비율은 ML 참조로 인정하지 않는다. |
-
-실제 ML 참조가 필요한 자동 감액은 참조를 확인할 수 없으면 확인 필요로 안내한다. 확인된 재원과 사용자가 항목·금액까지 지정한 조정은 보호 조건을 검사하는 기존 경로를 사용한다. 지출 수집이 불완전하거나 저축 실행·쿠션 적립 상태를 확인할 수 없으면 가용액을 임의로 0원이나 미실행으로 판단하지 않는다.
-
-교통 참고 하한은 자차 없음 6만 원·있음 10만 원이며 미응답이면 적용하지 않는다. 잠금 원액이 시스템 하한보다 우선하고, 잠금액이 사용자 최소액보다 낮으면 충돌이다. 설계 스냅샷의 `transport_history_reference`에서 검증된 완료 3개월·기준액 분자/분모·이력 지문·버전을 읽고 낮은 소비 기준액을 적용한다. 누락·잘못된 자료는 `transport_history_status="unavailable"`이며 현재 지출로 추정하지 않는다. 실제 금융정보의 외부 LLM 전송 동의는 별도 확인 전이며, 외부 호출 시험은 합성 데이터로 제한한다.
-
-라우터 채팅의 입력 검사·조회·LLM 준비는 멱등 응답 저장 트랜잭션 밖에서 수행한다. 최초 ML 참조 보완은 짧은 트랜잭션으로 1회 시도를 확보하고, 모델 추론 중에는 예산 행을 잠그지 않는다. 저장은 회원 → 대화·예산 순서로 잠그며, 승인 직전 재검사에서는 새 참조 추론이나 보완 기록을 시작하지 않는다. 같은 성공 요청 키의 재전송은 준비·LLM을 다시 실행하지 않는다.
-
-로컬 LLM 호출 장부는 Windows 파일 교체의 일시적인 접근·공유 거부만 잠금 안에서 최대 6회(총 대기 310ms) 재시도한다. 같은 기록의 파일 교체만 반복하며 호출 수를 다시 더하거나 LLM 요청을 재전송하지 않는다. 계속 실패하거나 디스크 오류가 나면 외부 호출을 보내지 않고 오류를 반환한다.
-
-실제 서비스 DB에는 DB 담당 절차로 `users`의 유지 목표 필드 마이그레이션을 적용해야 한다. 코드·파일 준비와 DB 적용은 별개이며 이 작업에서 운영 DB에 자동 적용하지 않는다. 기존 `.env` 비밀값이나 배포 설정은 문서 갱신만으로 변경되지 않는다.
-
----
-
-### 선택 기능: 가격 근거 예산 검토
+### 가격 근거 예산 검토 (선택)
 
 - `BUDGET_PRICE_REFERENCE_PATH`: 검증된 UTF-8 JSON 스냅샷의 서버 파일 경로. 기본값은 빈 값이며, 미설정 시 파일·지역 정보를 읽지 않고 기존 예산 계산을 유지한다. 실행 환경에 읽기 전용 파일로 제공하며 원자료·개인 PC 경로를 저장소에 넣지 않는다.
 - `BUDGET_PRICE_PROFILE_PROVIDER`: **Django 설정의 callable** `(user) -> {"region_code": "12345", "item_groups": {"BEAUTY": "haircut"}}`. 환경변수 문자열만으로는 연결되지 않는다. 서버가 확인한 5자리 시군구 코드와 선택적인 세부품목 코드를 반환하도록 연결한다. 위치·이용 품목을 추측하지 않으며 제공자·지역이 없으면 검토를 생략한다.
@@ -166,11 +168,11 @@ LangSmith까지 자동으로 확장한 것으로 해석하지 않는다. 키·�
 
 기존 검토 규칙을 유지한다: 확인된 소비 이력이 있는 항목의 1회 기준가 미달·30% 이상 자동 감액을 재검토하며, 70% 유지액은 재검토 대안이지 가격에서 산출한 월별 필수 하한이 아니다. 사용자가 직접 지정한 항목·잠금·미사용 0원은 존중하고, 주거·통신과 여행·숙박에는 월별 구매 하한을 적용하지 않는다. 세부품목이 없으면 패션의 `basic_top`·미용의 `haircut`만 임시 기준으로 표시한다. `needs_reallocation`은 추가 재원 검토가 필요하다는 뜻이며 사용자 승인이나 기존 보호 조건을 건너뛰지 않는다.
 
-## 3. 로컬 PostgreSQL 준비
+---
 
-둘 중 하나를 선택한다.
+## 4. 로컬 PostgreSQL 준비
 
-**A. Docker (권장)** — 설치가 간단하고 팀원 간 버전이 같아진다.
+**A. Docker (권장)** — [`LOCAL_SETUP.md`](LOCAL_SETUP.md) 4단계와 같다.
 
 ```bash
 docker run --name money-cushion-db \
@@ -180,115 +182,38 @@ docker run --name money-cushion-db \
   -p 5432:5432 -d pgvector/pgvector:pg17
 ```
 
-Windows PowerShell은 한 줄로 실행한다.
-
-```powershell
-docker run --name money-cushion-db -e POSTGRES_DB=money_cushion -e POSTGRES_USER=money_cushion -e POSTGRES_PASSWORD=<.env와 같은 비밀번호> -p 5432:5432 -d pgvector/pgvector:pg17
-```
-
-> `pgvector/pgvector:pg17`은 PostgreSQL 17에 벡터 검색 확장(pgvector)이 들어 있는 이미지다. 벡터 검색(정책 RAG 예정)에 쓴다. `finance` 0009 마이그레이션도 이 확장이 있어야 돈다.
+> `pgvector/pgvector:pg17`은 PostgreSQL 17에 벡터 검색 확장(pgvector)이 들어 있는 이미지다. 청년 정책 검색이 쓰고, `finance` 0009 마이그레이션도 이 확장이 있어야 돈다. CI도 같은 이미지를 쓴다.
 
 **B. 직접 설치 (macOS)**
 
 ```bash
-brew install postgresql@17
+brew install postgresql@17 pgvector
 brew services start postgresql@17
 psql postgres -c "CREATE USER money_cushion WITH PASSWORD '<비밀번호>' CREATEDB;"
 psql postgres -c "CREATE DATABASE money_cushion OWNER money_cushion;"
-brew install pgvector
 psql template1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
 psql money_cushion -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-> `template1`에 확장을 켜 두면 Django 테스트가 새로 만드는 테스트 DB에도 pgvector가 켜진다.
+> `CREATEDB` 권한과 `template1`의 확장은 Django 테스트가 새로 만드는 테스트 DB에 필요하다.
 
-> `CREATEDB` 권한은 Django 테스트(`manage.py test`)가 테스트 DB를 만들 때 필요하다.
-
-**이미 DB를 띄워 둔 경우 (pgvector 추가)** — `finance` 0009 마이그레이션부터 pgvector가 필요하다. `migrate` 전에 한 번만 실행한다.
+설치 확인 (`migrate` 후에 `installed_version`이 나오면 켜진 것):
 
 ```bash
-# A. Docker (기존 데이터 유지)
-docker exec -it money-cushion-db bash -c "apt-get update && apt-get install -y postgresql-17-pgvector"
-
-# B. 직접 설치 (macOS)
-brew install pgvector
-psql template1 -c "CREATE EXTENSION IF NOT EXISTS vector;"
-psql money_cushion -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker exec money-cushion-db psql -U money_cushion -d money_cushion -c "SELECT name, installed_version FROM pg_available_extensions WHERE name='vector';"
 ```
 
-설치 확인: `installed_version`은 `migrate` 전에는 비어 있고, **`migrate` 후에 버전이 나오면** DB에 켜진 것이다.
-
-```bash
-# A. Docker (PC에 psql이 없어도 된다)
-docker exec money-cushion-db psql -U money_cushion -d money_cushion -c "SELECT name, default_version, installed_version FROM pg_available_extensions WHERE name='vector';"
-
-# B. 직접 설치 (macOS)
-psql -h localhost -U money_cushion -d money_cushion -c "SELECT name, default_version, installed_version FROM pg_available_extensions WHERE name='vector';"
-```
-
-> 결과가 0줄이면 pgvector가 설치되지 않은 것이다.
-
-> `could not open extension control file` → pgvector가 설치되지 않은 것이다. 위 명령을 먼저 실행한다.
-> `permission denied to create extension "vector"` → 관리자 계정으로 `CREATE EXTENSION vector;`를 한 번 실행한 뒤 다시 `migrate`한다.
-
----
-
-## 4. Django 설정에서 읽기
-
-실제 설정은 `backend/config/settings.py`. Django는 `backend/` 아래에 있고 `.env`는 프로젝트 루트에 있으므로 `BASE_DIR.parent`에서 읽는다.
-
-```python
-import os
-from pathlib import Path
-
-from django.core.exceptions import ImproperlyConfigured
-from dotenv import load_dotenv
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR.parent / ".env")  # BASE_DIR = backend/
-
-
-def required(name):
-    """꼭 있어야 하는 값. 칸이 없거나 비어 있으면 서버를 켤 때 바로 알려준다"""
-    value = os.getenv(name, "").strip()
-    if not value:
-        raise ImproperlyConfigured(f".env에 {name} 값이 비어 있어요. docs/LOCAL_SETUP.md 3단계를 확인하세요.")
-    return value
-
-
-def env_list(name, default=""):
-    return [v.strip() for v in os.getenv(name, default).split(",") if v.strip()]
-
-
-SECRET_KEY = required("DJANGO_SECRET_KEY")
-DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": required("POSTGRES_DB"),
-        "USER": required("POSTGRES_USER"),
-        "PASSWORD": required("POSTGRES_PASSWORD"),
-        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
-    }
-}
-```
-
-- 필수 값(시크릿 키 · DB 이름 · 사용자 · 비밀번호)은 `required()`로 읽는다. 칸이 없거나 **비어 있으면** 서버를 켤 때 `ImproperlyConfigured: .env에 ○○ 값이 비어 있어요`로 바로 알려준다. (`os.environ["..."]`만 쓰면 `.env.example`을 복사만 해서 빈 칸인 경우를 못 잡는다)
-- 필수가 아닌 값(호스트 · 포트 · 허용 호스트)은 `os.getenv`로 읽고 기본값을 둔다.
-- `DEBUG` 기본값은 `False`로 둔다. `.env`가 없는 서버에서 실수로 디버그 모드가 켜지는 것을 막는다. `True` · `true` 모두 켜짐으로 읽는다.
-- 새 필수 값을 추가하면 `required("이름")`으로 읽고, `.env.example`과 이 문서에도 같이 적는다.
+| 에러 | 해결 |
+|---|---|
+| `could not open extension control file` | pgvector가 없다. A는 `pgvector/pgvector:pg17` 이미지로 다시 만들고, B는 `brew install pgvector` |
+| `permission denied to create extension "vector"` | 관리자 계정으로 `CREATE EXTENSION vector;`를 한 번 실행한 뒤 다시 `migrate` |
 
 ---
 
 ## 5. 보안 규칙
 
-- `.env`는 절대 커밋하지 않는다. (`.gitignore`에 등록됨, `.env.example`만 커밋)
-- 실제 키를 README · 이슈 · PR · 단톡방에 그대로 붙여넣지 않는다. 팀원에게는 개인 메시지로만 전달한다.
-- 키가 커밋·노출되면 파일만 지우지 말고 **발급처에서 키를 즉시 재발급**한다.
-- 개발·시연에는 합성·모의 데이터와 CODEF **데모 버전**(`CODEF_ENV=demo`)을 사용한다. 데모 키는 팀이 일일 호출 한도를 같이 쓰므로, 응답은 JSON으로 저장해두고 저장본으로 개발한다. (`sandbox`는 라이브러리 공용 키로 도는 연습용, `product`는 실서비스용)
-
-예산 A/B 연결은 `BUDGET_DESIGN_ENABLED=true`로 설정한다. 외부 추천을 허용할 때는 `BUDGET_DESIGN_EXTERNAL_ENABLED=true`를 추가한다. `CHAT_ENGINE=router`, `CHAT_LLM=live`에서 일반 라우터는 목적지를 분류하며, 예산 조정 에이전트로 전달하기 전에 조정 전용 동의 두 개를 확인한다. 분배용 동의는 재사용하지 않는다. 외부 기능 OFF에서는 기존 동의 철회만 허용한다. ML 실행 파일과 모델 위치는 `BUDGET_INFERENCE_PYTHON`, `BUDGET_MODEL_PATH`로 설정할 수 있다.
+- `.env`는 커밋하지 않는다 (`.gitignore`에 등록됨). `.env.example`에는 값을 비워서 올린다.
+- 실제 키를 README · 이슈 · PR · 채팅방에 그대로 붙여넣지 않는다.
+- 키가 커밋 · 노출되면 파일만 지우지 말고 **발급처에서 키를 즉시 재발급**한다.
+- 같은 DB를 여러 사람이 쓰면 `CONNECTED_ID_ENCRYPTION_KEY` · `IDENTIFIER_HMAC_KEY`도 같은 값을 써야 저장된 연결 · 금융 데이터를 읽을 수 있다.
+- 개발 · 시연에는 합성 데이터와 CODEF **데모 버전**(`CODEF_ENV=demo`)을 쓴다. 데모 버전은 하루 호출 수가 제한되므로 확인한 응답은 저장해 두고 개발한다. 실제 거래가 담긴 응답 파일은 커밋하지 않는다.

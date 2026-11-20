@@ -176,7 +176,7 @@
                   "waiting",
                   "unknown"
                 ],
-                "description": "R12: received 인정된 급여(사용자 확인·자동 인정) 있음 · needs_check 판단 없는 후보만 있음(받음·아직으로 단정하지 않음) · waiting 후보도 없음 · unknown 실수령액 미등록"
+                "description": "received 인정된 급여(사용자 확인·자동 인정) 있음 · needs_check 판단 없는 후보만 있음(받음·아직으로 단정하지 않음) · waiting 후보도 없음 · unknown 실수령액 미등록"
               },
               "salaryReceivedOn": {
                 "type": "string",
@@ -213,7 +213,7 @@
               "salaryGap": {
                 "type": "object",
                 "nullable": true,
-                "description": "11/13. 받은 월급이 등록 실수령액과 1만원 이상 · 3% 이상 다르고 아직 그 금액으로 답하지 않았으면 채운다. 답하기: POST /api/budgets/salary/gap/ (docs/api/salary.md)",
+                "description": "받은 월급이 등록 실수령액과 1만원 이상 · 3% 이상 다르고 아직 그 금액으로 답하지 않았으면 채운다. 답하기: POST /api/budgets/salary/gap/ (docs/api/salary.md)",
                 "properties": {
                   "diff": {
                     "type": "integer",
@@ -347,7 +347,7 @@
               },
               "livingSpent": {
                 "type": "integer",
-                "description": "11/17. 이번 주기 생활비 사용액 (생활비를 넘어도 그대로)"
+                "description": "이번 주기 생활비 사용액 (생활비를 넘어도 그대로)"
               },
               "livingPct": {
                 "type": "integer",
@@ -423,7 +423,7 @@
               "nag": {
                 "type": "string",
                 "nullable": true,
-                "description": "11/13. 이번 주기에 예산을 자주 바꾸면 홈 종 알림 문구 (예산 화면 nag 와 같은 값). 없으면 null"
+                "description": "이번 주기에 예산을 자주 바꾸면 홈 종 알림 문구 (예산 화면 nag 와 같은 값). 없으면 null"
               },
               "overCategories": {
                 "type": "array",
@@ -497,7 +497,7 @@
               },
               "week": {
                 "type": "object",
-                "description": "11/17. 이번 주(월요일 시작) 몫. budget = 이번 주 전까지 쓰고 남은 생활비 ÷ 남은 주 수(올림, 최소 1)",
+                "description": "이번 주(월요일 시작) 몫. budget = 이번 주 전까지 쓰고 남은 생활비 ÷ 남은 주 수(올림, 최소 1)",
                 "properties": {
                   "budget": {
                     "type": "integer"
@@ -519,7 +519,7 @@
               "forecast": {
                 "type": "object",
                 "nullable": true,
-                "description": "11/17. 지금까지 하루 평균 × 주기 전체 일수. 주기 첫날 null",
+                "description": "지금까지 하루 평균 × 주기 전체 일수. 주기 첫날 null",
                 "properties": {
                   "total": {
                     "type": "integer"
@@ -536,7 +536,7 @@
               },
               "topCategories": {
                 "type": "array",
-                "description": "11/17. 이번 주기 생활비 지출 상위 3개 (지출 0원 제외)",
+                "description": "이번 주기 생활비 지출 상위 3개 (지출 0원 제외)",
                 "items": {
                   "type": "object",
                   "properties": {
@@ -569,7 +569,7 @@
               "vsPrev": {
                 "type": "object",
                 "nullable": true,
-                "description": "11/17. 지난 주기 같은 기간 대비. 지난 주기 거래가 없으면 null",
+                "description": "지난 주기 같은 기간 대비. 지난 주기 거래가 없으면 null",
                 "properties": {
                   "diff": {
                     "type": "integer",
@@ -603,7 +603,7 @@
           },
           "upcoming": {
             "type": "object",
-            "description": "11/17. mustPay 중 오늘 ~ 7일 뒤에 나갈 돈",
+            "description": "mustPay 중 오늘 ~ 7일 뒤에 나갈 돈",
             "properties": {
               "total": {
                 "type": "integer"
@@ -671,7 +671,7 @@
           },
           "paymentState": {
             "type": "string",
-            "description": "partial = 연결된 금액 합계가 예정 금액의 90%(올림) 미만. 90% 이상이면 paid라 목록에서 빠진다 (11/4).",
+            "description": "partial = 연결된 금액 합계가 예정 금액의 90%(올림) 미만. 90% 이상이면 paid라 목록에서 빠진다.",
             "enum": [
               "unpaid",
               "partial",
@@ -710,7 +710,7 @@
           },
           "userChecked": {
             "type": "boolean",
-            "description": "card_bill 의 amount 가 사용자 확인 '앞으로 낼 금액'인지 (11/06). '전부 냈어요'로 확인한 청구서는 목록에서 빠진다"
+            "description": "card_bill 의 amount 가 사용자 확인 '앞으로 낼 금액'인지. '전부 냈어요'로 확인한 청구서는 목록에서 빠진다"
           }
         },
         "required": [

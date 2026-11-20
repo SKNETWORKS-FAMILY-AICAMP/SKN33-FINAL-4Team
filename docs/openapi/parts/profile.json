@@ -1,0 +1,384 @@
+{
+  "paths": {
+    "/api/profile/": {
+      "get": {
+        "summary": "내 정보 보기",
+        "operationId": "profileGet",
+        "tags": [
+          "내 정보"
+        ],
+        "x-source": "docs/api/profile.md",
+        "description": "로그인한 본인의 생년월일·성별·거주 형태·자차·사는 지역·소비 우선순위·카테고리 최소 금액. 아직 저장하지 않았으면 값은 null, 목록은 []이며 조회로 행을 만들지 않는다.",
+        "responses": {
+          "200": {
+            "description": "내 정보. 목록은 순위순·카테고리 표시 순서.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                },
+                "examples": {
+                  "saved": {
+                    "value": {
+                      "birthDate": "1999-03-15",
+                      "gender": "female",
+                      "housingType": "alone",
+                      "hasCar": false,
+                      "regionCode": "11620",
+                      "regionName": "서울특별시 관악구",
+                      "priorities": [
+                        {
+                          "category": "FOOD",
+                          "categoryName": "식비",
+                          "rank": 1
+                        },
+                        {
+                          "category": "CULTURE_LEISURE",
+                          "categoryName": "문화·여가",
+                          "rank": 2
+                        },
+                        {
+                          "category": "MEDICAL_HEALTH",
+                          "categoryName": "의료·건강",
+                          "rank": 3
+                        }
+                      ],
+                      "categoryMinimums": [
+                        {
+                          "category": "FOOD",
+                          "categoryName": "식비",
+                          "minAmount": 300000
+                        }
+                      ]
+                    }
+                  },
+                  "empty": {
+                    "value": {
+                      "birthDate": null,
+                      "gender": null,
+                      "housingType": null,
+                      "hasCar": null,
+                      "regionCode": null,
+                      "regionName": null,
+                      "priorities": [],
+                      "categoryMinimums": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "내 정보 저장",
+        "operationId": "profilePut",
+        "tags": [
+          "내 정보"
+        ],
+        "x-source": "docs/api/profile.md",
+        "description": "PUT은 일곱 항목의 전체 교체다. 누락·null은 400이며, 최소 금액을 설정하지 않으면 categoryMinimums: []를 보낸다.\n\n- 우선순위: 생활비 배분 대상 8개 카테고리 중 3~8개. rank는 1부터 빠짐없이, 순위·카테고리 중복 불가. HOUSING_TELECOM·TRAVEL_LODGING(예산 밖)·ETC·UNCLASSIFIED는 400.\n- 최소 금액: 배분 대상 8개와 ETC 중 원하는 항목만, 항목당 1~9,999,999,999원. 우선순위에 없는 카테고리도 가능. 최소 금액 합계와 생활비 비교는 예산 생성 때 검사한다.\n- regionCode: GET /api/policies/regions/의 시군구 코드만. 시도 코드·없는 코드는 400.\n- 회원 행을 잠그고 프로필·두 목록을 한 트랜잭션으로 저장한다. 같은 PUT 반복은 같은 결과라 Idempotency-Key가 필요 없다. 급여·급여일·쿠션·지킬 돈 설정은 바꾸지 않는다.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileSaveRequest"
+              },
+              "examples": {
+                "onboarding": {
+                  "value": {
+                    "birthDate": "1999-03-15",
+                    "gender": "female",
+                    "housingType": "alone",
+                    "hasCar": false,
+                    "regionCode": "11620",
+                    "priorities": [
+                      {
+                        "category": "FOOD",
+                        "rank": 1
+                      },
+                      {
+                        "category": "CULTURE_LEISURE",
+                        "rank": 2
+                      },
+                      {
+                        "category": "MEDICAL_HEALTH",
+                        "rank": 3
+                      }
+                    ],
+                    "categoryMinimums": [
+                      {
+                        "category": "FOOD",
+                        "minAmount": 300000
+                      },
+                      {
+                        "category": "ETC",
+                        "minAmount": 10000
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "저장한 내 정보 (GET과 같은 모양). 처음 저장·수정 모두 200.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                },
+                "example": {
+                  "birthDate": "1999-03-15",
+                  "gender": "female",
+                  "housingType": "alone",
+                  "hasCar": false,
+                  "regionCode": "11620",
+                  "regionName": "서울특별시 관악구",
+                  "priorities": [
+                    {
+                      "category": "FOOD",
+                      "categoryName": "식비",
+                      "rank": 1
+                    },
+                    {
+                      "category": "CULTURE_LEISURE",
+                      "categoryName": "문화·여가",
+                      "rank": 2
+                    },
+                    {
+                      "category": "MEDICAL_HEALTH",
+                      "categoryName": "의료·건강",
+                      "rank": 3
+                    }
+                  ],
+                  "categoryMinimums": [
+                    {
+                      "category": "FOOD",
+                      "categoryName": "식비",
+                      "minAmount": 300000
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "누락·타입·값·목록 오류: invalid (fields에 칸별 이유). 잘못된 JSON: parse_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ProfileCategoryItem": {
+        "type": "object",
+        "required": [
+          "category",
+          "categoryName"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/CategoryCode"
+          },
+          "categoryName": {
+            "type": "string",
+            "description": "응답 전용 표시 이름"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "priorities에만"
+          },
+          "minAmount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "categoryMinimums에만"
+          }
+        }
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "required": [
+          "birthDate",
+          "gender",
+          "housingType",
+          "hasCar",
+          "regionCode",
+          "regionName",
+          "priorities",
+          "categoryMinimums"
+        ],
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female",
+              null
+            ],
+            "nullable": true
+          },
+          "housingType": {
+            "type": "string",
+            "enum": [
+              "alone",
+              "family",
+              null
+            ],
+            "nullable": true,
+            "description": "alone 자취 · family 본가 거주. 지킬 돈 비율(자취 55/30/5/10, 본가 45/40/5/10)의 입력"
+          },
+          "hasCar": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "regionCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "사는 지역 시군구 코드"
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true,
+            "description": "응답 전용. 예: 서울특별시 관악구"
+          },
+          "priorities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileCategoryItem"
+            }
+          },
+          "categoryMinimums": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileCategoryItem"
+            }
+          }
+        }
+      },
+      "ProfileSaveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "birthDate",
+          "gender",
+          "housingType",
+          "hasCar",
+          "regionCode",
+          "priorities",
+          "categoryMinimums"
+        ],
+        "properties": {
+          "birthDate": {
+            "type": "string",
+            "format": "date",
+            "description": "실제 날짜, 오늘 이후 불가, 만 0~120세"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "male",
+              "female"
+            ]
+          },
+          "housingType": {
+            "type": "string",
+            "enum": [
+              "alone",
+              "family"
+            ]
+          },
+          "hasCar": {
+            "type": "boolean"
+          },
+          "regionCode": {
+            "type": "string",
+            "pattern": "^[0-9]{5}$"
+          },
+          "priorities": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "category",
+                "rank"
+              ],
+              "properties": {
+                "category": {
+                  "$ref": "#/components/schemas/SelectableCategoryCode"
+                },
+                "rank": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8
+                }
+              }
+            }
+          },
+          "categoryMinimums": {
+            "type": "array",
+            "maxItems": 9,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "category",
+                "minAmount"
+              ],
+              "properties": {
+                "category": {
+                  "$ref": "#/components/schemas/SelectableCategoryCode"
+                },
+                "minAmount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9999999999
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

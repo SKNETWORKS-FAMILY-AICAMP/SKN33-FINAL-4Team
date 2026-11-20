@@ -1,4 +1,4 @@
-"""확정 명세와 현재 목업을 구분한 OpenAPI 문서. DB나 Django 설정 없이 생성 가능."""
+"""docs/openapi/parts/*.json을 합친 OpenAPI 문서. DB나 Django 설정 없이 생성 가능."""
 from copy import deepcopy
 import hashlib
 import json
@@ -6,89 +6,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PARTS = ROOT / "docs" / "openapi" / "parts"
-DOMAINS = ("auth", "finance-connect", "cards", "loans", "transactions", "fixed", "savings", "home", "chat", "budgets")
+DOMAINS = ("auth", "profile", "finance-connect", "cards", "loans", "transactions", "fixed", "savings", "home", "chat", "budgets", "salary", "cushion", "policies")
 METHODS = {"get", "post", "put", "patch", "delete"}
 CATEGORIES = ["FOOD", "HOUSING_TELECOM", "TRANSPORT_CAR", "HOUSEHOLD", "FASHION_SHOPPING", "MEDICAL_HEALTH", "BEAUTY", "EDUCATION", "CULTURE_LEISURE", "TRAVEL_LODGING", "ETC", "UNCLASSIFIED"]
-TAGS = ["공통 · 인증", "금융 동의 · 연결", "카드", "대출", "거래", "고정지출", "정기 저축", "홈", "통합 챗봇", "예산"]
+TAGS = ["공통 · 인증", "내 정보", "금융 동의 · 연결", "카드", "대출", "거래", "고정지출", "정기 저축", "홈", "통합 챗봇", "예산", "쿠션", "청년 정책"]
 
-# 실제 API 구현 및 계약 검증이 끝났을 때 변경. URL 존재만으로 구현 완료가 되지 않는다.
-IMPLEMENTATION = {
-    ("get", "/api/budgets/salary/"): "implemented",
-    ("put", "/api/budgets/salary/"): "implemented",
-    ("get", "/api/budgets/ai-consent/"): "implemented",
-    ("put", "/api/budgets/ai-consent/"): "implemented",
-    ("delete", "/api/budgets/ai-consent/"): "implemented",
-    ("get", "/api/budgets/adjustment-ai-consent/"): "implemented",
-    ("put", "/api/budgets/adjustment-ai-consent/"): "implemented",
-    ("delete", "/api/budgets/adjustment-ai-consent/"): "implemented",
-
-    ("get", "/api/csrf/"): "implemented",
-    ("get", "/api/home/"): "implemented",
-    # 인증 2~5 (세진, 10/26)
-    ("post", "/api/auth/signup/"): "implemented",
-    ("post", "/api/auth/login/"): "implemented",
-    ("post", "/api/auth/logout/"): "implemented",
-    ("get", "/api/auth/me/"): "implemented",
-    ("get", "/api/consent-documents/"): "implemented",
-    ("get", "/api/my/"): "implemented",
-    ("get", "/api/finance/consents/"): "implemented",
-    ("delete", "/api/finance/consents/{scope}/"): "implemented",
-    ("delete", "/api/auth/me/"): "implemented",
-    # 카드 · 대출: 저장 자료 조회·선택·보완·직접 등록 (10/27)
-    ("get", "/api/finance/connect/cards/"): "implemented",
-    ("put", "/api/finance/connect/cards/"): "implemented",
-    ("get", "/api/finance/card-bills/{id}/"): "implemented",
-    ("get", "/api/finance/loans/"): "implemented",
-    ("post", "/api/finance/loans/"): "implemented",
-    ("patch", "/api/finance/loans/{id}/"): "implemented",
-    ("post", "/api/finance/loans/{id}/payoff/"): "implemented",
-    ("post", "/api/finance/loans/{id}/payoff/cancel/"): "implemented",
-    ("get", "/api/finance/loan-dues/{id}/payments/"): "implemented",
-    ("post", "/api/finance/loan-dues/{id}/payments/"): "implemented",
-    ("delete", "/api/finance/loan-dues/{id}/payments/{transactionId}/"): "implemented",
-    ("get", "/api/finance/card-bills/{id}/payments/"): "implemented",
-    ("post", "/api/finance/card-bills/{id}/payments/"): "implemented",
-    ("delete", "/api/finance/card-bills/{id}/payments/{transactionId}/"): "implemented",
-    ("put", "/api/finance/card-bills/{id}/payment-check/"): "implemented",
-    ("delete", "/api/finance/card-bills/{id}/payment-check/"): "implemented",
-    ("get", "/api/finance/card-reviews/"): "implemented",
-    ("put", "/api/finance/card-reviews/{id}/"): "implemented",
-    # 금융 동의 · 계좌 · 연결 6~10 (연결 해제도 DB 구현)
-    ("post", "/api/finance/consents/"): "implemented",
-    ("get", "/api/finance/connect/accounts/"): "implemented",
-    ("put", "/api/finance/connect/accounts/"): "implemented",
-    ("get", "/api/finance/connections/"): "implemented",
-    ("post", "/api/finance/connections/"): "implemented",
-    ("post", "/api/finance/sync/"): "implemented",
-    ("delete", "/api/finance/connections/{connectionId}/"): "implemented",
-    # 거래 16~18 (혜리, 10/26)
-    ("get", "/api/finance/transactions/"): "implemented",
-    ("get", "/api/finance/transactions/{id}/"): "implemented",
-    ("patch", "/api/finance/transactions/{id}/"): "implemented",
-    # 예산: 지킬 돈 · 추천 · 보기 · 자물쇠 · 승인 (10/28)
-    ("get", "/api/budgets/protect/"): "implemented",
-    ("get", "/api/budgets/salary-review/"): "implemented",
-    ("post", "/api/budgets/salary-review/"): "implemented",
-    ("put", "/api/budgets/protect/"): "implemented",
-    ("post", "/api/budgets/recommend/"): "implemented",
-    ("get", "/api/budgets/"): "implemented",
-    ("post", "/api/budgets/{id}/approve/"): "implemented",
-    ("get", "/api/budgets/proposals/{id}/"): "implemented",
-    ("post", "/api/budgets/proposals/{id}/approve/"): "implemented",
-    # 저장·선택지·라우터 조정 연결까지 구현. 실제 자유 대화는 router/live 설정을 쓴다.
-    ("get", "/api/chat/conversations/{id}/"): "implemented",
-    ("get", "/api/chat/messages/"): "implemented",
-    ("post", "/api/chat/messages/"): "implemented",
-    ("get", "/api/tasks/{id}/"): "implemented",
-}
-# 고정지출(10/26) · 정기 저축(10/24): 입력 검증·로그인·DB 저장까지 구현
-for _domain, _state in (("fixed", "implemented"), ("savings", "implemented")):
-    for _method, _suffix in (("get", ""), ("post", ""), ("patch", "{id}/"), ("delete", "{id}/"), ("post", "confirm/"), ("post", "ignore/")):
-        IMPLEMENTATION[(_method, f"/api/budgets/{_domain}/{_suffix}")] = _state
+# 모든 API가 구현·계약 검증을 마쳤다. 새 API를 명세만 먼저 추가할 때는 여기에 (method, path): "planned"를 넣는다.
+NOT_IMPLEMENTED = {}
 IDEMPOTENT_PATHS = {
     "/api/finance/consents/", "/api/finance/loans/", "/api/finance/loan-dues/{id}/payments/", "/api/finance/card-bills/{id}/payments/", "/api/chat/messages/",
     "/api/budgets/recommend/", "/api/budgets/{id}/approve/", "/api/budgets/proposals/{id}/approve/",
-    "/api/budgets/salary-review/",
+    "/api/budgets/salary-review/", "/api/budgets/salary/decisions/", "/api/budgets/salary/gap/",
     "/api/budgets/fixed/", "/api/budgets/fixed/confirm/", "/api/budgets/fixed/ignore/",
     "/api/budgets/savings/", "/api/budgets/savings/confirm/", "/api/budgets/savings/ignore/",
 }
@@ -105,36 +33,20 @@ def _display(kind):
     }
 
 
-def _state_counts():
-    """구현 상태별 개수 (설명 문장에 넣는다). 명세에 없는 주소는 세지 않는다"""
-    counts = {"implemented": 0, "mock": 0}
-    for (method, path), state in IMPLEMENTATION.items():
-        counts[state] += 1
-    return counts
-
-
 def _base():
-    counts = _state_counts()
-    total = sum(counts.values())
     return {
         "openapi": "3.0.3",
         "info": {
-            "title": "머니쿠션 API 명세서", "version": "2026-10-24",
+            "title": "머니쿠션 API 명세서", "version": "1.0.0",
             "description": (
-                f"현재 계약 {total}개 · 10개 기능 묶음. **명세 작성 완료와 API 구현 완료는 다릅니다.**\n\n"
-                f"현재 구현 {counts['implemented']}개(CSRF·인증·금융 동의 및 연결·카드·대출·거래·고정지출·정기 저축·홈·이전 대화·작업 확인·예산), "
-                f"목업 {counts['mock']}개입니다. "
-                "전체 명세는 읽기 전용이며, 구현된 API는 [현재 서버 확인](/api/docs/runtime/)에서 직접 실행할 수 있습니다. "
-                "예산 조정 자유 대화는 router/live와 실제 ML·재원·감액 정책 연결 상태를 확인하세요.\n\n"
-                "기준: docs/api/*.md, docs/API_RULES.md, 결정 AA·AB. "
-                "요청·응답은 camelCase, 금액은 원 단위 정수, ID는 UUID, 날짜는 YYYY-MM-DD, 시각은 ISO 8601. "
-                "빈 값은 null이며 PATCH의 생략은 유지, null은 허용된 칸만 비웁니다. 알 수 없는 요청 필드는 400.\n\n"
-                "인증은 Django 세션 쿠키입니다(JWT 없음). 변경 요청에는 X-CSRFToken, "
-                "일부 생성·확정 요청에는 Idempotency-Key를 보냅니다. 세션 없음은 403 not_authenticated, "
-                "주소의 없는·남의·잘못된 ID는 404, 본문의 부적합한 ID는 400입니다. "
-                "오류의 fields는 입력 항목 오류일 때만 존재합니다.\n\n"
-                "미정 항목은 설명에 남겼습니다. ML 에이전트 연동·쿠션, 비정기 준비금(2차), "
-                "그 밖의 아직 작성하지 않은 명세는 포함하지 않습니다."
+                "머니쿠션 서버 API 전체 명세입니다. 직접 실행은 [현재 서버 확인](/api/docs/runtime/) 화면에서 합니다.\n\n"
+                "공통 규칙(docs/API_RULES.md): 요청·응답은 camelCase, 금액은 원 단위 정수, ID는 UUID(청년 정책은 정책번호), "
+                "날짜는 YYYY-MM-DD, 시각은 ISO 8601. 빈 값은 null이며 PATCH에서 생략한 칸은 그대로, null은 허용된 칸만 비웁니다. "
+                "알 수 없는 요청 칸은 400입니다.\n\n"
+                "인증은 Django 세션 쿠키입니다(JWT 없음). 변경 요청에는 X-CSRFToken, 생성·확정 요청에는 Idempotency-Key를 보냅니다. "
+                "세션 없음은 403 not_authenticated, 주소의 없는·남의·잘못된 ID는 404, 본문의 부적합한 ID는 400입니다. "
+                "오류의 fields는 입력 항목 오류일 때만 있습니다.\n\n"
+                "예산 조정·청년 정책 자유 대화는 CHAT_ENGINE=router · CHAT_LLM=live 설정과 실제 자료가 있어야 동작합니다."
             ),
         },
         "servers": [{"url": "/", "description": "문서를 제공하는 동일 서버"}],
@@ -199,17 +111,11 @@ def build_contract():
                 raise ValueError(f"중복 schema: {name}")
             schema["components"]["schemas"][name] = component
     for path, method, operation in operations(schema):
-        state = IMPLEMENTATION.get((method, path), "planned")
+        state = NOT_IMPLEMENTED.get((method, path), "implemented")
         operation["x-implementation-status"] = state
-        label = {"implemented": "구현", "mock": "목업", "planned": "미구현"}[state]
-        operation["summary"] = f"[{label}] {operation['summary']}"
-        source = operation["x-source"]
-        note = {
-            "implemented": "현재 서버에서 구현된 API입니다.",
-            "mock": "현재 서버는 예시 응답을 반환하는 껍데기입니다. 입력 검증·DB 저장·실제 처리는 아직 구현되지 않았습니다.",
-            "planned": "명세는 작성되었으며 서버 API는 아직 구현되지 않았습니다.",
-        }[state]
-        operation["description"] = f"**개발 상태: {label}** — {note}\n\n{operation.get('description', '')}\n\n원본: `{source}`"
+        if state != "implemented":
+            operation["summary"] = f"[미구현] {operation['summary']}"
+        operation["description"] = f"{operation.get('description', '')}\n\n원본: `{operation['x-source']}`"
         if method in {"post", "put", "patch", "delete"}:
             params = operation.setdefault("parameters", [])
             if not any(p.get("name", "").lower() == "x-csrftoken" or p.get("$ref", "").endswith("/CsrfToken") for p in params):
@@ -219,7 +125,7 @@ def build_contract():
             if method == "post" and path in IDEMPOTENT_PATHS:
                 if not any(p.get("name", "").lower() == "idempotency-key" or p.get("$ref", "").endswith("/IdempotencyKey") for p in params):
                     params.append({"$ref": "#/components/parameters/IdempotencyKey"})
-    source_files = ["docs/API_RULES.md", "docs/api/README.md", "docs/api/salary.md", "docs/api/spending-analysis.md", "docs/결정기록_2026-10-21.md"] + [f"docs/api/{d}.md" for d in DOMAINS]
+    source_files = ["docs/API_RULES.md", "docs/api/README.md"] + [f"docs/api/{d}.md" for d in DOMAINS]
     # 체크아웃 줄바꿈(CRLF/LF)은 문서 내용 변경으로 보지 않는다.
     schema["x-source-sha256"] = {p: hashlib.sha256((ROOT / p).read_text(encoding="utf-8").encode("utf-8")).hexdigest() for p in source_files}
     return schema

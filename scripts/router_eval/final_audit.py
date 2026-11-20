@@ -120,7 +120,7 @@ def snake(obj):
 
 def b_cases(root, tag, live, ids=None):
     from django.db import transaction
-    from spending_fixture.test_fixture import user, TODAY
+    from spending_fixture.tests.test_fixture import user, TODAY
     design = service.seed.load('design.json')
     service.seed.apply(design)
     service.set_login.set_passwords(service.PASSWORD, design)

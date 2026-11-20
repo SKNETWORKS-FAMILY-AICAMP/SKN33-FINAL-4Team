@@ -1,0 +1,390 @@
+"""문서의 누락·인증 계약·실제 목업과의 혼동을 DB 연결 없이 검사한다."""
+
+from collections import Counter
+import json
+from pathlib import Path
+import re
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+from django.contrib.staticfiles import finders
+from django.test import SimpleTestCase, override_settings
+
+from ..openapi import build_contract, build_runtime_schema
+
+
+ROOT = Path(__file__).resolve().parents[3]
+HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
+SCHEMA_URLS = ("/api/schema/", "/api/schema/runtime/")
+DOCS_URLS = ("/api/docs/", "/api/docs/runtime/")
+
+
+def operation_items(schema):
+    for path, item in schema["paths"].items():
+        for method, operation in item.items():
+            if method in HTTP_METHODS:
+                yield path, method, operation
+
+
+def normalized_path(path):
+    """Django <uuid:name>, 원문 <id>, OpenAPI {name}의 이름 차이만 제거."""
+    return re.sub(r"<[^>]+>|\{[^}]+\}", "{}", path)
+
+
+def resolve_parameter(schema, parameter):
+    if "$ref" not in parameter:
+        return parameter
+    value = schema
+    for segment in parameter["$ref"].removeprefix("#/").split("/"):
+        value = value[segment]
+    return value
+
+
+@override_settings(ALLOWED_HOSTS=["testserver"], DEBUG=True)
+class OpenAPIContractTests(SimpleTestCase):
+    # SimpleTestCase는 DB 접근 자체를 실패시킨다. 회원·금융자료가 없어도 문서를 볼 수 있어야 한다.
+    databases = set()
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.contract = build_contract()
+
+    def test_contract_covers_the_84_operations_in_the_source_manifest(self):
+        manifest = (ROOT / "docs/api/README.md").read_text(encoding="utf-8")
+        section = manifest.split("## 1. 한눈에 보기", 1)[1].split("## 2.", 1)[0]
+        entries = re.findall(r"`(GET|POST|PUT|PATCH|DELETE)\s+(/api/[^`]+)`", section)
+        expected = {(method.lower(), normalized_path(path)) for method, path in entries}
+        operations = list(operation_items(self.contract))
+        actual = {(method, normalized_path(path)) for path, method, _ in operations}
+
+        self.assertEqual(len(entries), 84)
+        self.assertEqual(len(operations), 84)
+        self.assertSetEqual(actual, expected)
+        self.assertEqual(len({op["operationId"] for _, _, op in operations}), 84)
+        self.assertEqual(len({tag for _, _, op in operations for tag in op["tags"]}), 13)
+        for path, method, operation in operations:
+            with self.subTest(path=path, method=method):
+                self.assertTrue((ROOT / operation["x-source"]).is_file())
+
+    def test_contract_separates_implemented_mock_and_planned_operations(self):
+        states = {
+            (method, path): operation["x-implementation-status"]
+            for path, method, operation in operation_items(self.contract)
+        }
+        self.assertEqual(Counter(states.values()), {"implemented": 84})
+        self.assertEqual(states[("get", "/api/csrf/")], "implemented")
+        self.assertEqual(states[("post", "/api/auth/login/")], "implemented")
+        self.assertEqual(states[("put", "/api/finance/connect/accounts/")], "implemented")
+        self.assertEqual(states[("patch", "/api/finance/transactions/{id}/")], "implemented")
+        self.assertEqual(states[("get", "/api/chat/conversations/{id}/")], "implemented")
+        self.assertEqual(states[("get", "/api/home/")], "implemented")
+        for operation in (("post", "/api/chat/messages/"), ("get", "/api/chat/messages/"),
+                          ("get", "/api/budgets/proposals/{id}/"), ("post", "/api/budgets/proposals/{id}/approve/")):
+            self.assertEqual(states[operation], "implemented")
+        for operation in {
+            ("post", "/api/finance/connections/"), ("post", "/api/finance/sync/"),
+            ("get", "/api/tasks/{id}/"),
+        }:
+            self.assertEqual(states[operation], "implemented")
+        # 카드 · 대출 6개는 DB 연동 및 계약 검증을 마친 실제 API다.
+        for operation in {
+            ("get", "/api/finance/connect/cards/"), ("put", "/api/finance/connect/cards/"),
+            ("get", "/api/finance/card-bills/{id}/"), ("get", "/api/finance/loans/"),
+            ("post", "/api/finance/loans/"), ("patch", "/api/finance/loans/{id}/"),
+            ("get", "/api/finance/loan-dues/{id}/payments/"), ("post", "/api/finance/loan-dues/{id}/payments/"),
+            ("delete", "/api/finance/loan-dues/{id}/payments/{transactionId}/"),
+            ("get", "/api/finance/card-bills/{id}/payments/"), ("post", "/api/finance/card-bills/{id}/payments/"),
+            ("delete", "/api/finance/card-bills/{id}/payments/{transactionId}/"),
+            ("put", "/api/finance/card-bills/{id}/payment-check/"), ("delete", "/api/finance/card-bills/{id}/payment-check/"),
+        }:
+            self.assertEqual(states[operation], "implemented")
+        for (method, path), state in states.items():
+            if path.startswith(("/api/budgets/fixed/", "/api/budgets/savings/")):
+                with self.subTest(path=path, method=method):
+                    self.assertEqual(state, "implemented")
+
+    def test_session_csrf_and_request_number_contracts(self):
+        public = {"/api/csrf/", "/api/auth/signup/", "/api/auth/login/", "/api/auth/logout/", "/api/consent-documents/"}
+        # README의 요청 번호 적용 목록. PUT/PATCH/DELETE와 로그인 전 가입은 포함하지 않는다.
+        idempotent = {
+            "/api/finance/consents/", "/api/finance/loans/", "/api/chat/messages/",
+            "/api/budgets/recommend/", "/api/budgets/{id}/approve/", "/api/budgets/proposals/{id}/approve/",
+            "/api/budgets/salary-review/", "/api/budgets/salary/decisions/", "/api/budgets/salary/gap/",
+            "/api/budgets/fixed/", "/api/budgets/fixed/confirm/", "/api/budgets/fixed/ignore/",
+            "/api/budgets/savings/", "/api/budgets/savings/confirm/", "/api/budgets/savings/ignore/",
+            "/api/finance/loan-dues/{id}/payments/", "/api/finance/card-bills/{id}/payments/",
+            "/api/finance/loans/{id}/payoff/", "/api/finance/loans/{id}/payoff/cancel/",
+        }
+        scheme = self.contract["components"]["securitySchemes"]["sessionAuth"]
+        self.assertEqual((scheme["type"], scheme["in"], scheme["name"]), ("apiKey", "cookie", "sessionid"))
+        request_number_operations = set()
+        for path, method, operation in operation_items(self.contract):
+            with self.subTest(path=path, method=method):
+                security = operation.get("security", self.contract.get("security"))
+                self.assertEqual(security, [] if path in public else [{"sessionAuth": []}])
+                parameters = [resolve_parameter(self.contract, p) for p in operation.get("parameters", [])]
+                headers = {p["name"].lower(): p for p in parameters if p["in"] == "header"}
+                self.assertEqual("x-csrftoken" in headers, method != "get")
+                if method != "get":
+                    self.assertTrue(headers["x-csrftoken"]["required"])
+                if "idempotency-key" in headers:
+                    self.assertEqual(method, "post")
+                    if path.startswith(("/api/budgets/fixed/", "/api/budgets/savings/")):
+                        # fixed/savings 원문은 선택 헤더다. 적용 대상과 필수 여부는 별개다.
+                        self.assertFalse(headers["idempotency-key"]["required"])
+                    if path in {"/api/budgets/recommend/", "/api/budgets/{id}/approve/", "/api/budgets/proposals/{id}/approve/"}:
+                        self.assertTrue(headers["idempotency-key"]["required"])
+                    request_number_operations.add(path)
+        self.assertSetEqual(request_number_operations, idempotent)
+
+    def test_budget_adjustment_entry_and_approval_do_not_accept_client_financial_values(self):
+        schemas = self.contract["components"]["schemas"]
+        entry = schemas["BudgetAdjustmentEntry"]
+        self.assertFalse(entry["additionalProperties"])
+        self.assertEqual(set(entry["required"]), {"mode"})
+        self.assertEqual(set(entry["properties"]), {"baseBudgetId", "sourceTaskId", "mode", "hints"})
+        # hints = 예산 화면의 초과 카테고리에서 시작할 때만 (11/11). 칸은 셋으로 닫혀 있고 overAmount 는 참고값이다 —
+        # 서버가 최신 초과액을 다시 확인하며 증액 금액 · 예산 금액으로 쓰지 않는다 (chat.engine._entry_hints, docs/api/chat.md)
+        hints = entry["properties"]["hints"]
+        self.assertFalse(hints["additionalProperties"])
+        self.assertEqual(set(hints["properties"]), {"reason", "categories", "overAmount"})
+        self.assertEqual(hints["properties"]["reason"]["enum"], ["over"])
+        self.assertIn("참고값", hints["properties"]["overAmount"]["description"])
+        self.assertEqual([branch['required'] for branch in entry['oneOf']], [['baseBudgetId'], ['sourceTaskId']])
+        approval = schemas["BudgetAdjustmentApproveRequest"]
+        self.assertFalse(approval["additionalProperties"])
+        self.assertEqual(set(approval["properties"]), {"keepForNextCycle"})
+        card = schemas["BudgetAdjustmentCard"]["properties"]
+        for name in ("persistenceItems", "targetItems"):
+            self.assertEqual(card[name]["type"], "array")
+        self.assertIn("savedRef", card)
+        payload = schemas["ChatTextContent"]["properties"]["budgetAdjustment"]
+        self.assertEqual(payload["$ref"], "#/components/schemas/BudgetAdjustmentContent")
+        response = self.contract["paths"]["/api/budgets/proposals/{id}/approve/"]["post"]["responses"]["200"]
+        self.assertEqual(response["content"]["application/json"]["schema"]["$ref"],
+                         "#/components/schemas/BudgetAdjustmentApproveResponse")
+
+    def test_calculated_adjustment_comparisons_match_public_contract(self):
+        from openapi_schema_validator import OAS30Validator
+        from budgets.adjustment_core.advisor import PLAN_IDS, plan_increase
+        from budgets.adjustment_core.comparison import compare_adjustments
+        from budgets.tests.test_adjustment_core import allocation, context, envelope, item
+        from ..api import camel
+
+        comparisons = {
+            'tiered': plan_increase(context(), {
+                **envelope(item('FOOD', 600000)), 'spare_minimum': 200000,
+            }, allocation),
+            'explicit_source': plan_increase(context(),
+                envelope(item('FOOD', 50000), sources=['SAVINGS']), allocation, respect_selected=True),
+            'combined': compare_adjustments(context(), {
+                **envelope(item('SAVINGS', 300000)), 'spare_minimum': 200000,
+            }, allocate_group_reduction=allocation),
+        }
+        validator = OAS30Validator({
+            '$ref': '#/components/schemas/BudgetAdjustmentComparison',
+            'components': self.contract['components'],
+        })
+        ids = {plan['id'] for comparison in comparisons.values() for plan in comparison['plans']}
+        self.assertTrue({'cushion', 'savings', 'chosen', 'combined'} <= ids)
+        self.assertTrue(ids <= PLAN_IDS)  # 계산된 안은 일반 대화의 선택지로도 허용한다.
+        for name, comparison in comparisons.items():
+            with self.subTest(path=name):
+                validator.validate(camel(comparison))
+        id_validator = OAS30Validator(self.contract['components']['schemas']['BudgetAdjustmentPlan']['properties']['id'])
+        id_validator.validate('0')  # 재정 추천 경로는 안의 인덱스를 문자열 ID로 반환한다.
+
+    def test_recovery_entry_accepts_only_the_appropriate_id_and_no_money(self):
+        from openapi_schema_validator import OAS30Validator
+
+        validator = OAS30Validator(self.contract['components']['schemas']['BudgetAdjustmentEntry'])
+        source = {'mode': 'DESIGN_RECOVERY', 'sourceTaskId': '00000000-0000-4000-8000-000000000001'}
+        validator.validate(source)
+        for mode in ('INITIAL_ADJUSTMENT', 'NORMAL_ADJUSTMENT'):
+            validator.validate({'mode': mode, 'baseBudgetId': source['sourceTaskId']})
+        for invalid in (
+            {**source, 'baseBudgetId': source['sourceTaskId']}, {'mode': 'DESIGN_RECOVERY'},
+            {'mode': 'INITIAL_ADJUSTMENT', 'sourceTaskId': source['sourceTaskId']},
+            {**source, 'minimums': {'FOOD': 0}}, {**source, 'locks': {}}, {**source, 'priorities': []},
+        ):
+            with self.subTest(invalid=invalid):
+                self.assertTrue(list(validator.iter_errors(invalid)))
+
+    def test_recommendation_goal_conflicts_are_a_separate_review_result(self):
+        schemas = self.contract["components"]["schemas"]
+        conflict = schemas["BudgetTargetConflict"]
+        self.assertEqual(conflict["properties"]["type"]["enum"], ["target_conflict"])
+        self.assertEqual(set(conflict["properties"]["reason"]["enum"]),
+                         {"locked_amount", "minimum_amount", "amount_unit", "living_budget", "invalid_target"})
+        self.assertTrue(conflict["properties"]["requestedAmount"]["nullable"])
+        self.assertTrue(conflict["properties"]["possibleAmount"]["nullable"])
+        variants = schemas["BudgetRecommendationResult"]["properties"]["conflicts"]["items"]["oneOf"]
+        self.assertIn({"$ref": "#/components/schemas/BudgetTargetConflict"}, variants)
+
+    def test_path_variables_have_matching_required_uuid_parameters(self):
+        for path, method, operation in operation_items(self.contract):
+            with self.subTest(path=path, method=method):
+                parameters = [resolve_parameter(self.contract, p) for p in operation.get("parameters", [])]
+                parameters += [resolve_parameter(self.contract, p) for p in self.contract["paths"][path].get("parameters", [])]
+                path_parameters = [p for p in parameters if p["in"] == "path"]
+                names = re.findall(r"\{([^}]+)\}", path)
+                self.assertCountEqual([p["name"] for p in path_parameters], names)
+                for parameter in path_parameters:
+                    self.assertTrue(parameter["required"])
+                    if parameter["name"] == "scope":
+                        self.assertEqual(parameter["schema"]["enum"], ["bank", "card", "loan"])
+                    elif parameter["name"] == "policyNo":
+                        # 청년 정책은 온통청년 정책번호(20자리 숫자)가 ID다
+                        self.assertEqual(parameter["schema"]["pattern"], "^[0-9]{20}$")
+                    elif parameter["name"] == "code":
+                        self.assertEqual(parameter["schema"]["type"], "string")
+                        self.assertNotIn("UNCLASSIFIED", parameter["schema"]["enum"])
+                    else:
+                        self.assertEqual(parameter["schema"].get("format"), "uuid")
+
+    def test_schema_http_response_preserves_openapi_and_payload_keys(self):
+        response = self.client.get("/api/schema/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        document = response.json()
+        # CamelJSONRenderer를 잘못 거치면 예시 이름(not_authenticated 등)까지 바뀐다.
+        self.assertEqual(document, self.contract)
+        self.assertIn("x-source-sha256", document)
+        self.assertIn("requestBody", document["paths"]["/api/finance/loans/"]["post"])
+        self.assertIn("required", document["components"]["schemas"]["LoanCreateRequest"])
+        self.assertIn("monthlyPayment", document["components"]["schemas"]["Loan"]["properties"])
+        self.assertNotIn("monthly_payment", document["components"]["schemas"]["Loan"]["properties"])
+        error_examples = document["paths"]["/api/finance/connect/cards/"]["get"]["responses"]["403"]["content"]["application/json"]["examples"]
+        self.assertIn("not_authenticated", error_examples)
+        self.assertIn("머니쿠션", response.content.decode())
+
+    def test_source_hashes_ignore_checkout_line_endings(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for source in self.contract['x-source-sha256']:
+                path = root / source
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'contract\nsource\n')
+            with patch('config.openapi.ROOT', root):
+                lf = build_contract()['x-source-sha256']
+                for source in lf:
+                    (root / source).write_bytes(b'contract\r\nsource\r\n')
+                self.assertEqual(build_contract()['x-source-sha256'], lf)
+
+    def test_runtime_document_contains_all_implemented_operations(self):
+        response = self.client.get("/api/schema/runtime/")
+        self.assertEqual(response.status_code, 200)
+        runtime = response.json()
+        self.assertEqual(runtime, build_runtime_schema())
+        implemented = {
+            (method, path) for path, method, operation in operation_items(self.contract)
+            if operation["x-implementation-status"] == "implemented"
+        }
+        actual = {(method, path) for path, method, _ in operation_items(runtime)}
+        # 새 연결·다시 불러오기·작업 확인을 포함한 구현된 API만 실행 화면에 둔다
+        self.assertSetEqual(actual, implemented)
+        self.assertEqual(len(actual), 84)
+        self.assertEqual(runtime["security"], [])
+        for path, method, operation in operation_items(runtime):
+            with self.subTest(path=path, method=method):
+                self.assertEqual(operation["security"], [])
+                # 구현된 API는 확정 계약의 모든 방식을 실행할 수 있고, CSRF 헤더는 화면이 자동으로 넣는다.
+                self.assertEqual(operation["x-implementation-status"], "implemented")
+                self.assertFalse(any(p.get("$ref", "").endswith("/CsrfToken") for p in operation.get("parameters", [])))
+        self.assertIn("/api/budgets/", runtime["paths"])
+        self.assertIn("/api/finance/loans/", runtime["paths"])
+        self.assertIn("/api/finance/connect/cards/", runtime["paths"])
+        self.assertIn("/api/chat/messages/", runtime["paths"])
+        self.assertIn("/api/budgets/fixed/{id}/", runtime["paths"])
+        self.assertIn("put", runtime["paths"]["/api/finance/connect/accounts/"])
+
+    def test_runtime_references_resolve_to_included_components(self):
+        runtime = build_runtime_schema()
+        text = json.dumps(runtime["paths"]) + json.dumps(runtime["components"])
+        for ref in set(re.findall(r'"\$ref": "(#/components/[^"]+)"', text)):
+            with self.subTest(ref=ref):
+                value = runtime
+                for segment in ref.removeprefix("#/").split("/"):
+                    self.assertIn(segment, value)
+                    value = value[segment]
+
+    def test_runtime_response_examples_match_the_actual_http_payloads(self):
+        runtime = self.client.get("/api/schema/runtime/").json()
+        for path, methods in runtime["paths"].items():
+            if path != "/api/csrf/":
+                continue  # 구현된 API: 로그인 · DB 가 필요한 실제 응답이라 샘플 예시와 비교하지 않는다
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                expected = methods["get"]["responses"]["200"]["content"]["application/json"]["example"]
+                self.assertEqual(response.json(), expected)
+                if path == "/api/csrf/":
+                    self.assertIn("csrftoken", response.cookies)
+                    self.assertEqual(response.json(), {"ok": True})
+
+    def test_swagger_pages_use_local_assets_and_the_correct_execution_mode(self):
+        for path, schema_url, submit_methods in (
+            ("/api/docs/", "/api/schema/", []),
+            ("/api/docs/runtime/", "/api/schema/runtime/", ["get", "post", "put", "patch", "delete"]),
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, schema_url)
+                self.assertContains(response, "전체 명세 84개")
+                self.assertNotContains(response, "미구현")
+                self.assertContains(response, "/api/docs/runtime/")
+                options = json.loads(response.data["settings"])
+                self.assertEqual(options["supportedSubmitMethods"], submit_methods)
+                self.assertIsNone(options["validatorUrl"])
+                self.assertFalse(options["persistAuthorization"])
+                self.assertFalse(options["queryConfigEnabled"])
+                html = response.content.decode()
+                assets = re.findall(r'(?:src|href)="([^"]*drf_spectacular_sidecar/[^"]+)"', html)
+                self.assertGreaterEqual(len(assets), 3)
+                for asset in assets:
+                    self.assertTrue(asset.startswith("/static/"), asset)
+                    self.assertTrue(finders.find(asset.removeprefix("/static/")), asset)
+                self.assertNotRegex(html, r'<script[^>]+src="https?://')
+
+    def test_schema_urls_reject_non_get_methods_as_json_405(self):
+        for path in SCHEMA_URLS:
+            for method in ("POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"):
+                with self.subTest(path=path, method=method):
+                    response = self.client.generic(method, path)
+                    self.assertEqual(response.status_code, 405)
+                    self.assertEqual(response["Allow"], "GET")
+                    self.assertEqual(response["Content-Type"], "application/json")
+                    if method != "HEAD":
+                        self.assertEqual(response.json()["error"]["code"], "method_not_allowed")
+
+    def test_swagger_urls_do_not_accept_mutations(self):
+        for path in DOCS_URLS:
+            for method in ("POST", "PUT", "PATCH", "DELETE"):
+                with self.subTest(path=path, method=method):
+                    response = self.client.generic(method, path)
+                    self.assertEqual(response.status_code, 405)
+                    self.assertEqual(response.data["error"]["code"], "method_not_allowed")
+
+    @override_settings(DEBUG=False)
+    def test_docs_and_schemas_are_hidden_in_production(self):
+        for path in SCHEMA_URLS + DOCS_URLS:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(response.json()["error"]["code"], "not_found")
+
+    def test_unknown_schema_docs_and_original_api_routes_keep_json_404(self):
+        for path in (
+            "/api/schema/missing/", "/api/docs/missing/", "/api/does-not-exist/",
+            "/api/finance/transactions/not-a-uuid/", "/api/schema", "/api/docs",
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 404)
+                error = response.json()["error"]
+                self.assertEqual(error["code"], "not_found")
+                self.assertNotIn("fields", error)
+                if not path.endswith("/"):
+                    self.assertIn("주소 끝에 /", error["message"])

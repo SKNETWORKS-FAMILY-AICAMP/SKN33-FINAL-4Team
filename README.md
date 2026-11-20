@@ -8,14 +8,19 @@
 
 **AI는 요청을 해석하고 후보를 제안합니다. 금액 계산과 보호 조건 검증은 서버가 수행하고, 예산 변경은 사용자가 승인해야 반영됩니다.**
 
+![머니쿠션 서비스 화면 — 홈 · 거래 · 예산 · 쿠션 · 챗봇](docs/images/service-screens.png)
+
+<sub>왼쪽부터 홈 · 거래 · 예산 · 쿠션 · 챗봇 화면</sub>
+
 | 항목 | 내용 |
 |---|---|
 | 대상 | 정기적인 급여를 받으며 독립적인 금융생활을 시작하는 사회초년생 |
 | 핵심 기능 | 금융 조회·거래 분류 → 예산 설계 → 소비 분석·예산 조정 → 비상자금 관리·청년 정책 검색 |
 | 제공 형태 | React 기반 모바일 웹 + Django REST API |
+| 서비스 주소 | [app.13-209-100-102.sslip.io](https://app.13-209-100-102.sslip.io/) |
 | 금융 연동 범위 | CODEF 계좌·카드·대출 **조회**. 송금·결제·금융상품 가입·대출 실행은 제공하지 않음 |
 | 프로젝트 기간 | 2026.09.28 ~ 2026.11.20 · 3명 |
-| 문서 기준 | **2026.11.16 저장소 구현 기준**. 기능 활성화 조건과 모델 평가 범위는 아래에 별도 표기 |
+| 문서 기준 | **2026.11.20 저장소 구현 기준**. 기능 활성화 조건과 모델 평가 범위는 아래에 별도 표기 |
 
 [주요 기능](#주요-기능) · [핵심 설계](#핵심-설계) · [아키텍처](#시스템-아키텍처) · [모델과 평가](#데이터ml-모델과-평가) · [실행 방법](#로컬-실행) · [검증](#테스트와-검증) · [문서](#상세-문서)
 
@@ -48,7 +53,7 @@ flowchart LR
 | 금융 연결·거래 관리 | 계좌·카드·대출 조회, 동기화, 취소·이체·카드값·상환 연결, 거래 분류 및 사용자 수정 | [finance](backend/finance/) |
 | 급여·지킬 돈 | 급여일·실수령액·주기 변경, 고정지출·정기 저축 후보 확인, 카드 청구·납부 상태 반영 | [budgets](backend/budgets/) |
 | 예산 설계 | 통계 기반 A / 개인 이력 기반 B, 최소금액·우선순위·자물쇠·유지 목표 반영, 추천 근거와 승인 | [design_service.py](backend/budgets/design_service.py) |
-| 홈·머니쿠션 | 남은 생활비·하루 금액·여윳돈, 카테고리 초과·큰 지출 안내, 쿠션 목표·보호 기록 | [home.py](backend/budgets/home.py), [cushion.py](backend/budgets/cushion.py) |
+| 홈·머니쿠션 | 이번 주 쓸 수 있는 돈·남은 생활비·월급날 예상, 카테고리 초과·큰 지출 안내, 쿠션 목표·보호 기록 | [home.py](backend/budgets/home.py), [cushion.py](backend/budgets/cushion.py) |
 | 소비 분석 | 자연어 조건 해석, 기간 비교, 금액·건수·평균·시간대 등 분석, 근거 기반 설명, 조건부 ML 비교 | [spending_analysis](backend/spending_analysis/) |
 | 예산 조정 | 자연어 요청·추가 질문, 재원별 조정 가능액 계산, 변경 전후 제안, 명시적 승인·새 버전 저장 | [adjustment_core](backend/budgets/adjustment_core/), [adjustment_service.py](backend/budgets/adjustment_service.py) |
 | 청년 정책 | 벡터·키워드 검색, 지역·기간·자격 확인, 결과 검토·재검색, 정책 상세·북마크 | [policies](backend/policies/) |
@@ -102,13 +107,14 @@ flowchart TD
 | 급여 주기 | 달력의 1일~말일이 아닌 사용자의 급여 기준 기간 |
 | 지킬 돈 | 생활비 배분 전에 확인하는 고정지출·저축·쿠션 등 보호 대상 |
 | 남은 생활비 | 생활비 배정액에서 해당 범위의 사용액을 뺀 금액. 홈·예산 화면은 최소 0원으로 표시하고 초과·부족액을 별도 관리 |
-| 하루 금액 | 남은 생활비를 **내일부터 주기 종료 전날까지**의 일수로 나눈 정수 원 금액. 나눌 날이 없으면 표시하지 않음 |
+| 이번 주 쓸 수 있는 돈 | 이번 주 전까지 쓰고 남은 생활비를 **이번 주를 포함한 남은 주 수**로 나눈 몫에서 이번 주 사용액을 뺀 금액. 주는 월요일 시작. 홈 첫 화면에 표시 |
+| 하루 금액 | 남은 생활비를 **내일부터 주기 종료 전날까지**의 일수로 나눈 정수 원 금액. 챗봇의 남은 예산 답변에서 사용하고, 나눌 날이 없으면 표시하지 않음 |
 | 여윳돈 | 아직 배정하지 않은 금액에서 사용·예약 등을 반영한 잔여 재원. 남은 생활비와 구분하여 표시 |
 | 머니쿠션 | 기본 목표는 월 실수령액의 3배이며 직접 목표 금액 설정 가능. 예산 승인에 따른 계획상 보호 기록과 실제 적립 기록을 구분 |
 | 최소금액·자물쇠 | 카테고리에 남겨야 할 하한과 사용자가 고정한 금액. 조정 시 보호 조건으로 검사 |
 | 예산 밖 지출 | **주거·통신, 여행·숙박**은 현재 생활비 배분·차감에서 제외하고 별도로 안내. 거래 목록과 전체 소비 분석에는 남음 |
 
-예를 들어 생활비 예산이 600,000원이고 해당 범위의 소비가 200,000원이면 남은 생활비는 400,000원입니다. 나눌 날이 10일이면 하루 금액은 40,000원입니다. 별도의 여윳돈이나 쿠션을 이 생활비에 임의로 더하지 않습니다.
+예를 들어 생활비 예산이 600,000원이고 이번 주 전까지 200,000원을 썼다면, 이번 주를 포함해 4주가 남았을 때 이번 주 몫은 100,000원입니다. 이번 주에 30,000원을 썼다면 홈에는 "70,000원 더 쓸 수 있어요"가 표시됩니다. 별도의 여윳돈이나 쿠션을 이 생활비에 임의로 더하지 않습니다.
 
 카드 승인내역·은행 출금·취소·카드값·본인 계좌 이체를 구분하는 이유도 같은 지출을 중복 집계하지 않기 위해서입니다. 거래 연결 상태와 조회 범위가 불명확하면 확인 필요 상태를 유지합니다. 쿠션의 계획상 보호액은 **실제 송금 완료나 별도 계좌 잔액을 의미하지 않습니다.**
 
@@ -142,7 +148,7 @@ flowchart TD
 
 애플리케이션 내부에서는 거래 분류·예산 설계와 대화 라우터가 연결한 소비 분석·예산 조정·청년 정책 모듈이 동작합니다. CatBoost 추론은 백엔드 컨테이너 안의 별도 Python 환경·프로세스를 사용합니다.
 
-백그라운드 작업은 [config/tasks.py](backend/config/tasks.py)의 **프로세스 내부 스레드 + DB 작업 상태** 방식입니다. 서버가 종료되어 작업이 멈추면 lease 만료 후 실패 처리하고 다시 시도하도록 안내합니다. 영속 작업 큐·독립 Worker 전환은 후속 과제입니다.
+작업 상태는 [config/tasks.py](backend/config/tasks.py)의 DB 작업 기록으로 관리합니다. 예산 추천·조정 같은 계산은 요청 안에서 끝내고, 금융 다시 불러오기와 카드 첫 조회만 **프로세스 내부 스레드**로 돌립니다. 서버가 종료되어 작업이 멈추면 lease 만료 후 실패 처리하고 다시 시도하도록 안내합니다. 영속 작업 큐·독립 Worker 전환은 후속 과제입니다.
 
 ### 기술 스택
 
@@ -182,6 +188,8 @@ S3의 모델·보조 파일 전달은 위 코드 이미지 배포와 별도의 �
 | 생활비 배분 | 가계동향조사 정제 자료의 20~34세 근로자 1인 가구. 연령·성별·소득·차량·고정비·배분할 생활비 | CatBoost로 10개 카테고리 비율 예측. 서비스는 생활비 범위에 맞춰 보호 조건과 금액 단위를 적용 |
 | 월 소비 참고 | 가계동향조사 기반 프로필 입력, 별도 CatBoost 모델 C | 11개 소비 항목의 월 금액을 예측. 완전한 월 자료·예측 오차를 확인해 소비 분석의 참고 기준으로 사용 |
 
+청년 정책 데이터는 온통청년 정책 JSON 파일을 정규화해 저장하고, OpenAI 임베딩을 pgvector에 넣어 검색에 사용합니다. 적재 명령은 [청년 정책 문서](docs/agents/청년정책.md)에 있습니다.
+
 모델 파일·원자료는 저장소에 포함하지 않습니다. 전처리·학습·추론 코드는 [scripts](scripts/), 공유 가능한 집계 지표는 [reports/ml_models](reports/ml_models/)에 있습니다. 모델 C는 코드가 연결되어 있으나 공개된 두 집계 지표 파일의 평가 대상에는 포함되지 않습니다.
 
 ### 저장된 평가 결과
@@ -208,8 +216,8 @@ S3의 모델·보조 파일 전달은 위 코드 이미지 배포와 별도의 �
 ### 1. 의존성·환경변수
 
 ```bash
-git clone https://github.com/20260528-skn-family-ai-33/SKN33-Final-4Team.git
-cd SKN33-Final-4Team
+git clone https://github.com/SKNETWORKS-FAMILY-AICAMP/SKN33-FINAL-4Team.git
+cd SKN33-FINAL-4Team
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -256,6 +264,16 @@ npm run dev
 
 Vite가 `/api` 요청을 Django로 프록시합니다. 위 단계는 기본 서버 실행이며 실제 금융 조회·ML 추천·자연어 AI를 모두 활성화하지는 않습니다. Swagger의 계약 명세와 현재 실행 응답은 분리되어 있습니다.
 
+### 4. 시연 계정 (선택)
+
+금융 연결 없이 화면을 보려면 온보딩까지 끝난 합성 계정(`a` · `b` · `c`)을 만듭니다. CODEF는 호출하지 않으며 거래는 실행한 날(한국 시간)까지만 들어갑니다. 저장소 루트에서 실행합니다.
+
+```bash
+cd backend
+python manage.py seed_persona a                                    # 미리보기 (DB에 쓰지 않음)
+DEMO_LOGIN_PASSWORD='<비밀번호>' python manage.py seed_persona a --apply   # 생성. 다시 만들 때는 --reset 추가
+```
+
 ### 기능별 실행 조건
 
 | 확인할 기능 | 추가 준비 |
@@ -275,6 +293,8 @@ Vite가 `/api` 요청을 Django로 프록시합니다. 위 단계는 기본 서�
 
 ### 재현 가능한 검사
 
+테스트 위치: 백엔드 앱 테스트는 각 앱의 `tests/` 폴더(예: `backend/budgets/tests/`), 앱 밖의 전처리·ML·예산 설계·라우터 평가 테스트는 저장소 루트 `tests/`, 화면 테스트는 각 화면 파일 옆의 `*.test.jsx`에 있습니다.
+
 환경변수와 로컬 PostgreSQL이 준비된 상태에서 실행합니다. Django DB 테스트에는 테스트 DB 생성 권한이 필요합니다. 기능별 일부 검사는 모델 파일·외부 실행 조건이 없으면 건너뛰므로 결과의 `skipped`도 함께 확인합니다.
 
 ```bash
@@ -286,8 +306,11 @@ python backend/manage.py makemigrations --check --dry-run
 python backend/manage.py test users finance budgets chat config spending_analysis policies --noinput
 
 # 고정된 합성 자료를 사용하는 별도 로컬 fixture 검사
-python backend/manage.py test spending_fixture chat.test_engine \
+python backend/manage.py test spending_fixture chat.tests.test_engine \
   --settings=spending_fixture.settings --noinput
+
+# 라우터 평가 도구 검사 (LLM 호출 없음)
+PYTHONPATH=backend:scripts/router_eval python -m unittest discover -s tests/router_eval -p 'test_*.py'
 
 # OpenAPI 계약·예시·생성 파일 최신 여부
 python -m pip install -r requirements-docs.txt
@@ -303,16 +326,16 @@ npm run build
 
 | 검증 대상 | 확인하는 위험 | 근거 |
 |---|---|---|
-| 예산 설계·승인 | 총액 불일치, 최소금액·잠금 위반, 오래된 추천 승인, 동의 없는 외부 보정 | [test_design_service.py](backend/budgets/test_design_service.py), [test_design_consent.py](backend/budgets/test_design_consent.py), [test_design_integration.py](backend/budgets/test_design_integration.py) |
-| 예산 조정 | 기준 자료 변경, 중복 승인, 재원·보호 조건 오류 | [test_adjustment_service.py](backend/budgets/test_adjustment_service.py), [test_adjustment_reference_locking.py](backend/budgets/test_adjustment_reference_locking.py) |
-| 거래·개인정보 | 중복 저장, 동기화 중 철회·삭제, 만료 작업의 늦은 결과 반영 | [test_concurrency.py](backend/finance/test_concurrency.py), [test_stale_work.py](backend/finance/test_stale_work.py), [test_codef_privacy.py](backend/finance/test_codef_privacy.py) |
-| 소비 분석 | 기간·대상 혼동, 자료 누락을 0원으로 오인, 근거 밖 설명 | [spending_fixture](backend/spending_fixture/), [spending_analysis](backend/spending_analysis/) |
+| 예산 설계·승인 | 총액 불일치, 최소금액·잠금 위반, 오래된 추천 승인, 동의 없는 외부 보정 | [test_design_service.py](backend/budgets/tests/test_design_service.py), [test_design_consent.py](backend/budgets/tests/test_design_consent.py), [test_design_integration.py](backend/budgets/tests/test_design_integration.py) |
+| 예산 조정 | 기준 자료 변경, 중복 승인, 재원·보호 조건 오류 | [test_adjustment_service.py](backend/budgets/tests/test_adjustment_service.py), [test_adjustment_reference_locking.py](backend/budgets/tests/test_adjustment_reference_locking.py) |
+| 거래·개인정보 | 중복 저장, 동기화 중 철회·삭제, 만료 작업의 늦은 결과 반영 | [test_concurrency.py](backend/finance/tests/test_concurrency.py), [test_stale_work.py](backend/finance/tests/test_stale_work.py), [test_codef_privacy.py](backend/finance/tests/test_codef_privacy.py) |
+| 소비 분석 | 기간·대상 혼동, 자료 누락을 0원으로 오인, 근거 밖 설명 | [spending_fixture/tests](backend/spending_fixture/tests/), [spending_analysis/tests](backend/spending_analysis/tests/) |
 | 정책 검색 | 지역·기간·자격 불일치, 검색 순위와 실제 적합성의 차이 | [policies/tests](backend/policies/tests/), [정책 평가 도구](backend/policies/eval/README.md) |
 | 사용자 화면 | 동의·추천·조정·승인 흐름, API 오류와 재시도 | [frontend/src/pages](frontend/src/pages/), [frontend/src/components](frontend/src/components/)의 테스트 |
 
-자동 회귀 검사, 합성 데이터 기반 서비스 검사, 실제 LLM 평가는 구분합니다. 저장된 LLM 응답을 재생한 통과율은 새 모델 호출의 성능이 아닙니다. [라우터 평가 기록](reports/router_eval/README.md)과 [소비 분석 검증 기록](backend/spending_fixture/README.md)에는 평가 조건·실패 사례·재검증 범위를 남겨 두었습니다.
+자동 회귀 검사, 합성 데이터 기반 서비스 검사, 실제 LLM 평가는 구분합니다. 저장된 LLM 응답을 재생한 통과율은 새 모델 호출의 성능이 아닙니다. [라우터 평가 보고서](reports/router_eval/2026-11-18_라우터_평가_보고서.md)에는 평가 조건·실패 사례·해석할 때 주의할 점을 남겨 두었습니다.
 
-2026.11.16 문서 갱신 시 `build_openapi.py --check --validate`로 **69개 API·158개 모델·447개 예시**의 검증과 생성 파일 최신 여부를 확인했습니다. 이는 API 계약 검증 결과이며 전체 서비스 회귀 테스트나 실제 외부 연동의 통과를 의미하지 않습니다.
+2026.11.20 문서 갱신 시 `build_openapi.py --check --validate`로 **84개 API·174개 모델·482개 예시**의 검증과 생성 파일 최신 여부를 확인했습니다. 이는 API 계약 검증 결과이며 전체 서비스 회귀 테스트나 실제 외부 연동의 통과를 의미하지 않습니다.
 
 ### 심사·시연에서 확인할 흐름
 
@@ -321,8 +344,6 @@ npm run build
 3. **예산 조정:** “식비를 5만 원 늘리고 싶어”를 요청하고 재원·보호 조건·변경 전후 금액을 검토합니다. 승인 전후 예산 버전을 비교합니다.
 4. **실패·보호 동작:** 최소금액·잠금이 충돌하거나 자료가 부족한 경우 확인 요청과 승인 차단을 확인합니다.
 5. **청년 정책:** 지역과 고민을 입력하고 정책 근거·신청 기간·확인할 조건을 본 뒤 북마크합니다.
-
-실제 금융자료 없이 확인하려면 [합성 fixture 안내](backend/spending_fixture/README.md)를 사용합니다. 고정 fixture는 소비 분석 검증용이므로 실제 금융 연결이나 모든 기능의 종단 간 시연을 대체하지 않습니다.
 
 ## 개인정보·동의 처리
 
@@ -343,7 +364,7 @@ npm run build
 | 데이터 범위 | 가계 통계의 분류 단위·결측 처리·학습 집단에 따른 한계. 청년 전체나 다양한 가구 형태로 일반화하지 않음 |
 | 자연어 분석 | 문장 표현·맥락에 따라 해석이 달라질 수 있음. 고정 사례 회귀와 실제 LLM 평가를 나누어 확대 필요 |
 | 정책 최신성 | 저장된 공고·벡터에 의존. 정기 수집·갱신과 공고 원문 확인 필요 |
-| 백그라운드 처리 | 프로세스 내부 스레드 방식. 작업량 증가·서버 재시작에 대응하는 영속 큐·독립 Worker 전환은 후속 과제 |
+| 백그라운드 처리 | 프로세스 내부 스레드 방식. 작업량 증가·서버 재시작에 대응하는 영속 큐·독립 Worker 전환은 후속 과제. 하루 3번 자동 불러오기 명령(`finance_auto_sync`)은 있지만 배포 설정에 예약 실행이 없어 현재는 사용자가 직접 다시 불러옴 |
 | 서비스 검증 | 공개 저장소만으로 모델·금융 키·정책 데이터를 모두 재현할 수 없음. 배포 환경별 활성화·실제 사용자 시나리오 확인 필요 |
 
 ## 저장소 구조
@@ -351,7 +372,7 @@ npm run build
 ```text
 .
 ├── frontend/                  # React 화면 · 공통 컴포넌트 · 팝업 · UI 테스트
-├── backend/
+├── backend/                   # 앱마다 tests/ 폴더에 자동 테스트
 │   ├── config/                # 설정 · API 라우팅 · 공통 응답 · 작업 상태 · OpenAPI
 │   ├── users/                 # 회원 · 프로필 · 동의 · 개인정보 삭제
 │   ├── finance/               # CODEF · 원장 · 거래 연결 · 분류 · 동기화
@@ -361,7 +382,7 @@ npm run build
 │   ├── policies/              # 정책 정규화 · 검색 · 자격 · 대화 · 저장
 │   └── spending_fixture/      # 합성 소비 자료 · 별도 DB 설정 · 회귀 검사
 ├── scripts/                   # 전처리 · ML 학습/추론 · 예산 실험 · 평가 도구
-├── tests/                     # 전처리 · ML · 예산 설계 등 독립 테스트
+├── tests/                     # 전처리 · ML · 예산 설계 · 라우터 평가 등 앱 밖 테스트
 ├── reports/                   # 공유 평가 지표 · 라우터 응답 기록
 ├── docs/                      # 환경 · API · DB · 모델 · 에이전트 · 배포 문서
 ├── deploy/                    # Dockerfile · Compose · Caddy · 배포 스크립트
@@ -371,11 +392,11 @@ npm run build
 
 ## 팀과 역할
 
-| 이름 | 주요 담당 |
-|---|---|
-| 김나은 · PM | 생활비 카테고리 배분 모델, 예산 설계·조정, 계산·공통 검증·승인 흐름, 머니쿠션·돌발지출, DB 스키마 |
-| 김혜리 · APM | 거래 분류 모델·에이전트, 라우터·통합 챗봇, CODEF·거래 원장·검색 연동, 알림·API 통합 |
-| 권세진 | 월 소비 참고 모델, 소비 분석·청년 정책, 자금 계산·복지/대출 데이터, 배포 |
+| 이름 | 담당 영역 | 주요 작업 |
+|---|---|---|
+| 김나은 · PM | 라우터 · 소비 분석 · 분류 개선 | 통합 챗봇 라우터 · 소비 분석 에이전트, API 통합과 AWS 배포 |
+| 김혜리 · APM | 예산 설계 · 예산 조정 · 소비 분석 | 예산 설계 · 조정 에이전트 및 ML 모델 2종, 데이터 전처리와 CODEF 금융 연결 |
+| 권세진 · 서기 | 카테고리 분류 · 청년 정책 | 벡터 DB 구축 및 청년 정책 RAG, CODEF 카드 · 대출 연동과 정책 화면 |
 
 DB 마이그레이션은 팀의 DB 담당자와 조율하여 작성하고, 다른 개발자는 공유된 마이그레이션을 `migrate`로 적용합니다.
 
@@ -386,7 +407,7 @@ DB 마이그레이션은 팀의 DB 담당자와 조율하여 작성하고, 다�
 | 환경·실행 | [로컬 설치](docs/LOCAL_SETUP.md) · [환경변수](docs/ENV_SETUP.md) · [프론트엔드 가이드](docs/FRONTEND_GUIDE.md) |
 | API·DB | [API 규칙](docs/API_RULES.md) · [기능별 API](docs/api/README.md) · [OpenAPI](docs/openapi/openapi.yaml) · [Swagger](docs/SWAGGER.md) · [DB 모델](docs/DB_MODELS.md) |
 | AI·데이터 | [ML 모델](docs/ML_MODELS.md) · [예산 설계](docs/agents/budget_design.md) · [거래 분류](docs/agents/거래분류.md) · [청년 정책](docs/agents/청년정책.md) · [거래 이력 검증](docs/finance_history_verifier.md) |
-| 평가·배포 | [라우터 평가](reports/router_eval/README.md) · [소비 분석 fixture](backend/spending_fixture/README.md) · [정책 평가](backend/policies/eval/README.md) · [AWS 배포](docs/AWS_DEPLOYMENT_GUIDE.md) |
+| 평가·배포 | [라우터 평가](reports/router_eval/2026-11-18_라우터_평가_보고서.md) · [정책 평가](backend/policies/eval/README.md) · [AWS 배포](docs/AWS_DEPLOYMENT_GUIDE.md) |
 | 프로젝트 산출물 | [기획부터 최종 발표까지](산출물/) |
 
-상세 문서에는 과거 실험·인계 기록도 포함되어 있습니다. 실행 동작은 현재 코드와 설정을, 과거 평가 수치는 해당 기록의 모델 버전·데이터·평가 시점을 함께 확인하세요.
+위 문서는 현재 구현 기준입니다. 실행 동작은 현재 코드와 설정을 함께 확인하세요.

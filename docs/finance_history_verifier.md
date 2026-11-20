@@ -1,160 +1,128 @@
-# 예산 B안 연결용 거래 정합성 검증
+# 거래 이력 검증
 
-연결할 함수는 `finance.history_verifier.verify_transaction_history(user, month_ids)`이다.
-파일은 `backend/finance/history_verifier.py`. `BUDGET_HISTORY_VERIFIER` 설정, 예산 ML,
-A/B 선택, 미분류 보정, 서비스 활성화는 이 구현에서 변경하지 않는다.
+예산 B안을 쓰기 전에, 지난 3개월 소비 합계를 믿어도 되는지 확인한다. 달마다 **중복 · 취소 · 환불** 세 가지를 보고 각각 `verified` · `unknown` · `unresolved` 중 하나를 준다. 세 가지가 모두 `verified`인 달만 B안에 쓸 수 있다.
+
+| 항목 | 내용 |
+|---|---|
+| 함수 | `finance.history_verifier.verify_transaction_history(user, month_ids, *, use_confirmed_salary=False)` |
+| 예산 연결 | `budgets.design_history.verify_budget_history` → 위 함수를 `use_confirmed_salary=True`로 부른다 |
+| 바꾸는 설정 | `BUDGET_HISTORY_VERIFIER` (기본 `verify_budget_history`) |
+| 하는 일 | 읽기만 한다. DB 쓰기 · 잠금 · CODEF · ML 호출 없음. DB 읽기 2번 |
+| 쓰는 곳 | [예산 설계 에이전트](agents/budget_design.md) A/B 고르기 |
 
 ```python
 from finance.history_verifier import verify_transaction_history, transaction_history_report
 
-states = verify_transaction_history(user, ["2026-08", "2026-09", "2026-10"])
+verify_transaction_history(user, ["2026-08", "2026-09", "2026-10"])
 # {"2026-08": {"duplicates": "verified", "cancellations": "verified", "refunds": "unknown"}, ...}
-# 위 값은 형식 예시이며 실제 상태는 저장된 거래에 따라 달라진다.
-evidence = transaction_history_report(user, ["2026-08", "2026-09", "2026-10"])
+
+transaction_history_report(user, ["2026-08", "2026-09", "2026-10"])
+# 같은 모양 + 항목마다 영향 상한과 이유 (아래 4절)
 ```
 
-## 입력과 전제
+## 1. 입력 규칙
 
-- 서로 다른 완료된 달력월 3개를 `YYYY-MM` 문자열 iterable로 받는다. 이번 달·미래·중복·잘못된 형식은 `ValueError`다. 현재 월은 Django `timezone.localdate()` 기준이다.
-- 최근 연속 3개월을 고르는 책임은 호출자에게 있다. 이 함수는 호출자가 지정한 완료 월을 바꾸지 않고 입력 순서대로 반환한다.
-- `coverage` 완료 여부는 별도 전제다. 조회 기록을 다시 검사하거나 거래가 없다는 이유로 수집 완료를 주장하지 않는다.
-- 비교 대상은 현재 소비 집계(`listed_transactions`의 같은 구매 계좌 제외, `cancel_info` 차감, `spending_summary`의 소비 유형 선택)다. 고정비·예산 밖 소비도 포함한 거래 수준 검증이다. 카테고리·미분류 비중은 판정에 사용하지 않는다.
-- 원거래월 밖의 환불을 놓치지 않도록 사용자의 **저장된 전체 거래 이력**과 관련 연결을 읽는다. 이번 달 환불도 과거 원거래 월에 반영한다. 남의 거래 내용은 읽지 않는다.
-- DB 읽기 2회, 잠금·DB 쓰기·CODEF·ML 호출 없음. 동기화/후처리가 완료된 안정된 이력에서 호출한다. 두 SELECT가 하나의 고정된 DB 스냅샷을 보장하지 않으므로, 동기화 중 호출해야 한다면 호출자가 일관된 읽기 트랜잭션을 보장해야 한다.
+- 서로 다른 **완료된 달** `YYYY-MM`을 받는다. 이번 달 · 미래 · 중복 · 잘못된 형식은 `ValueError`. 오늘 기준은 `timezone.localdate()`.
+- 어느 3개월을 볼지는 부르는 쪽이 정한다. 결과는 받은 순서대로 돌려준다.
+- 수집 완료 여부(`coverage`)는 따로 본다. 이 함수는 "거래가 없으니 수집 완료"라고 판단하지 않는다.
+- 환불이 다음 달에 들어와도 원래 달에 반영해야 하니, 그 사용자의 **저장된 전체 거래**와 연결을 읽는다.
+- 동기화 · 후처리가 끝난 뒤에 부른다. 동기화 도중에 부르면 두 번의 읽기가 서로 다른 시점일 수 있다.
 
-## 상태 정의
+## 2. 상태
 
-| 상태 | 의미 |
-| --- | --- |
-| `verified` | 저장된 데이터에서 아래 검사를 통과했고, 식별한 미처리 항목도 소비 금액 영향이 0임을 확인했다. |
-| `unknown` | 동일 구매/원거래/환불 여부 또는 금액 근거가 부족해 영향을 확정하지 못했다. 유한한 상한이 있어도 허용 정책은 적용하지 않는다. |
-| `unresolved` | 저장된 취소 연결의 금액과 실제 소비 집계가 일치하지 않거나 연결 구조가 모순된다. 추정 연결이면 원거래가 확정됐다는 뜻은 아니다. |
+| 상태 | 뜻 |
+|---|---|
+| `verified` | 아래 검사를 모두 통과했다. 남은 문제가 있어도 소비 금액 영향이 0원이다 |
+| `unknown` | 같은 구매인지, 원거래가 뭔지, 환불인지 근거가 부족해 영향을 확정하지 못했다 |
+| `unresolved` | 저장된 연결 금액과 실제 소비 집계가 안 맞거나, 연결 구조가 모순된다 |
 
-한 월·한 항목에 여러 문제가 있으면 `unresolved > unknown > verified` 순서로 반환한다.
-DB 조회 실패는 모든 월·항목을 `unknown`으로 반환하며 오류 원문은 내보내지 않는다.
+- 한 달 한 항목에 문제가 여러 개면 `unresolved` > `unknown` > `verified` 순으로 나쁜 쪽을 준다.
+- DB 읽기 실패는 모든 달 · 항목이 `unknown`이다. 오류 원문은 내보내지 않는다.
+- 영향이 작아도 봐주지 않는다. 1억 원 소비에 1원 환불이 안 맞아도 `unknown`이다. 허용 금액 · 비율은 정하지 않았다.
 
-## verified 판정 근거
+## 3. 무엇을 보나
 
-### 중복
+비교 기준은 서비스 전체(홈 · 예산 사용액 · 소비 분석)와 같은 "쓴 돈"이다. 결제 − 서비스가 아는 취소 · 환불(취소 상태 · `CANCELLATION` 연결). 고정비 · 예산 밖 소비도 포함한다. 카테고리 · 미분류는 보지 않는다.
 
-소비에 기여하는 거래에 원천 식별 키(수동 입력은 요청 키)가 있고, 같은 원천의 거래 지문 또는 같은 카드·날짜·승인번호로 중복 후보가 발견되지 않아야 한다.
-거래 지문은 원천·결제수단·일시·금액·이름·잔액을 비교한다. 반복 결제를 실제 중복으로 단정하지 않으며 모호하면 `unknown`이다.
-같은 날·금액·이름의 카드와 은행 출금이 모두 소비에 남으면 중복 후보로 남긴다.
+**중복**
+- 소비 거래마다 원천 식별 키가 있어야 한다(수동 입력은 요청 키).
+- 같은 원천에서 거래 지문(결제수단 · 일시 · 금액 · 이름 · 잔액)이 같거나, 같은 카드 · 날짜 · 승인번호가 또 있으면 중복 후보다. 반복 결제는 중복으로 단정하지 않는다.
+- 같은 날 · 같은 금액 · 같은 이름의 카드 결제와 계좌 출금이 둘 다 소비로 남아 있으면 중복 후보다.
+- `SAME_PURCHASE` 연결은 소유자 · 카드/계좌 조합 · 방향 · 금액 · 날짜 · 일대일을 본다. 계좌 쪽이 이미 `transfer`라 소비가 0이면 통과한다.
 
-`SAME_PURCHASE`가 있으면 소유권, 카드/계좌 조합, 방향, 금액, 날짜, 일대일 연결을 검사한다.
-확정된 연결은 취소 차감액도 같아야 한다. 추정 연결이 소비 거래를 숨기면 `unknown`이다.
-계좌 행이 애초에 `transfer`여서 소비 기여가 0인 경우는 추정 연결이 남아 있어도 중복 소비 영향이 없어 통과할 수 있다.
-이미 취소된 0원 소비나 금액 0의 미처리 행 역시 건수만으로 막지 않는다.
+**취소 · 환불**
+- 원승인에 반영된 카드 취소: 원천 키 · 승인번호 · 기관 취소 상태와 취소 금액이 맞아야 한다. 부분취소는 금액이 있어야 한다.
+- 별도 `CANCELLATION` 연결: 방향 · 날짜 · 소유자 · 환불 재사용 · 순환 · 누적 취소액 초과를 본다. 원거래 순소비 = 원금 − 연결된 취소 합계여야 하고, 환불 행이 양수 소비로 남으면 안 된다.
+- 자동 매칭(`suggested`) 연결도 금액은 대조한다. 금액이 안 맞으면 `unresolved`, 맞아도 원거래 확정 근거가 없으면 `unknown`.
+- 원거래를 모르는 취소 · 환불은 그 달과 **그 이전 요청 달**을 모두 `unknown`으로 둔다.
 
-### 취소·환불
+**들어온 돈** (환불 항목)
+- 월급 · 내 계좌 이체 · 친구 1/n · 판매 대금 같은 일반 입금은 어느 화면에서도 소비를 줄이지 않으므로 막지 않는다.
+- 막는 경우는 셋뿐이다.
+  - 전에 결제한 가게와 같은 이름(공백 무시)으로 들어온 입금. 예: 쿠팡 결제 뒤 쿠팡 입금
+  - 들어온 돈이 소비로 집계되는 자료 이상
+  - 사용자가 월급이라고 확인한 입금의 금액 · 날짜 · 적요 · 계좌가 확인 뒤 바뀐 경우 (`use_confirmed_salary=True`일 때만)
+- 친구 1/n처럼 내 몫만 소비로 치고 싶으면 검증기가 아니라 거래 금액 수정(내 몫으로 고치기)으로 처리한다. 그러면 모든 화면과 B안에 같이 반영된다.
 
-- 원승인에 반영된 카드 취소: 원천 키·승인번호·기관의 정규화된 `cancelStatus`와 취소 플래그/금액이 일치하고, 별도 원거래 후보가 없어야 한다. 부분취소는 명시 금액이 있어야 한다. 부분취소 금액 미상, 상태 모순, 출처 불명은 `unknown`이다.
-- `card_review.save_transaction`은 재조회 때 취소 플래그·금액과 `source_detail`의 기관 근거를 같은 UPDATE로 저장한다. 이전 구현이 금액만 갱신한 데이터도 다음 정상 재조회에서 상태 근거를 복구한다. 기존 상태를 추측하는 일괄 데이터 보정이나 verifier의 상태 모순 검사 완화는 하지 않는다.
-- 별도 `CANCELLATION`: 원거래 → 취소/환불 방향, 날짜, 소유권, 환불 재사용, 순환/연쇄 연결, 누적 취소액 초과 여부를 검사한다. 취소·환불이 같은 관계 코드이므로 두 항목에 함께 반영한다.
-- 원거래의 실제 소비 순액이 `원금 - 연결된 취소/환불액 합계`와 같고, 별도 환불 행이 양수 소비로 남지 않아야 한다. 월별·행별 차이를 상쇄하지 않는다.
-- 예: 10,000원 원거래에 3,000원 환불 연결만 생기고 원거래의 차감액이 그대로면 `unresolved`. **확정 연결**이고 원거래가 실제로 7,000원으로 집계되며 환불 행의 소비 기여가 0이면 `verified`.
-- 자동 매칭의 `suggested`도 금액 대조를 생략하지 않는다. 연결과 소비액이 다르면 `unresolved`, 금액은 맞아도 원거래 확정 근거가 부족하면 `unknown`이다. `suggested_cancellation_link` 사유는 함께 유지하며 이 경우 영향 상한도 `None`이다. 자동 연결 상태를 `confirmed`로 바꾸지 않는다. 숨긴 계좌 원거래의 환불을 카드 대표 소비에 합성해야 하는 경우도 `unknown`으로 남긴다.
-- 연결 없는 은행 음수 취소 전표, 원거래가 불명확한 카드 취소는 원거래일 수 있는 요청 월들(이벤트 월 및 그 이전)을 미검증으로 남긴다.
-- **양수 입금 (2026-11-16 결정)**: B안의 '쓴 돈'은 서비스 전체(홈 · 예산 사용액 · 소비 분석)와 같은 기준이다 — 결제 − 서비스가 아는 취소 · 환불(취소 상태 · `CANCELLATION` 연결). 월급 · 내 계좌 이체 · 친구 1/n · 판매 대금 같은 일반 입금은 어느 화면에서도 소비를 줄이지 않으므로 B안을 막지 않는다. 환불 근거가 있는 입금만 미검증으로 남긴다.
-  - `inflow_from_paid_merchant`: 그 전에 결제한 적 있는 가게와 같은 이름(공백 무시)으로 들어온 입금 (예: 쿠팡 결제 뒤 쿠팡 입금). 이벤트 월 및 그 이전 요청 월이 `unknown`.
-  - `inflow_counted_as_spending`: 들어온 돈이 소비로 집계되는 자료 이상. 소비 합계가 양쪽으로 틀릴 수 있어 `unknown`.
-  - `changed_salary_evidence`: 사용자가 월급이라고 확인(또는 재확인 중)한 입금의 금액 · 날짜 · 적요 · 계좌가 확인 때와 달라진 경우 (`use_confirmed_salary=True`일 때만). 예산의 월급 근거가 흔들려 `unknown`으로 남겨 B안을 막는다. 제안 뒤 바뀌면 승인 때 예산이 만료된다 (11/16 PR 리뷰).
-  - 친구 1/n 처럼 내 몫만 소비로 치고 싶은 입금은 검증기가 아니라 거래 금액 수정(내 몫으로 고치기)에서 다룬다. 그러면 모든 화면과 B안에 같이 반영된다.
-  - 이전 규칙(모든 일반 입금 → `unattributed_inflow`)은 적금 이체 · 지난 회차 월급 · 친구 입금이 있는 거의 모든 사용자의 B안을 막아서 바꿨다 (시연 페르소나 시드에서 확인).
-- `after_save_pending.link_basics`가 남아 있으면 관련 월 검증을 보류한다. 카테고리 분류 실패만으로는 보류하지 않는다.
+**처리 대기**
+- 거래 저장 후처리의 연결 단계(`after_save_pending.link_basics`)가 남아 있으면 관련 달을 `unknown`으로 둔다. 카테고리 분류 실패는 상관없다.
 
-## 허용 금액·비율과 진단 결과
+## 4. 이유 코드
 
-**양수 영향의 허용 금액·비율은 미정이며 하드코딩/설정 추가를 하지 않았다.**
-현재의 0원 확인은 허용 오차 정책이 아니라 소비 합계에 영향이 없다는 판정이다.
-예를 들어 1억 원 소비에 1원 환불이 미반영돼도 자동으로 허용하지 않는다.
-
-`transaction_history_report`는 각 항목에 다음을 반환한다.
+`transaction_history_report`는 항목마다 이렇게 준다. 거래 원문 · 계좌번호 · 가게 이름 · 거래 ID는 넣지 않는다.
 
 ```python
-{
-    "status": "unresolved",
-    "impact_upper_bound": 3000,
-    "reasons": [{"code": "cancellation_not_reflected", "impact_upper_bound": 3000}],
-}
+{"status": "unresolved", "impact_upper_bound": 3000,
+ "reasons": [{"code": "cancellation_not_reflected", "impact_upper_bound": 3000}]}
 ```
 
-상한 단위는 원이고, 근거가 부족하면 `None`이다. 여러 사유가 같은 거래를 가리켜도 상한을 합하므로
-보수적으로 중복 계산될 수 있다. 원거래 불명의 입금은 가능한 각 과거 월에 상한을 부여하므로
-월간/항목간 합계를 실제 누락액으로 해석하면 안 된다. 하나라도 무한정이면 전체 상한도 `None`이다.
-검증용 결과에는 원문, 계좌번호, 가맹점명, 거래 ID를 넣지 않는다.
+| 코드 | 항목 | 상태 | 뜻 |
+|---|---|---|---|
+| `missing_identity` | 중복 | unknown | 원천 식별 키 없음 |
+| `duplicate_fingerprint` · `duplicate_approval` | 중복 | unknown | 같은 지문 · 같은 승인번호 거래가 또 있음 |
+| `unlinked_cross_source_purchase` | 중복 | unknown | 카드와 계좌에 같은 결제가 둘 다 소비로 남음 |
+| `suggested_same_purchase` | 중복 | unknown | 같은 구매 연결이 추정뿐인데 소비를 숨김 |
+| `same_purchase_net_mismatch` · `invalid_same_purchase` | 중복 | unresolved | 같은 구매 연결의 금액 · 구조가 안 맞음 |
+| `cancellation_not_reflected` | 취소 · 환불 | unresolved | 연결된 취소액이 원거래 소비에 반영 안 됨 |
+| `invalid_cancellation_link` | 취소 · 환불 | unresolved | 방향 · 날짜 · 누적액 등이 모순 |
+| `suggested_cancellation_link` | 취소 · 환불 | unknown | 금액은 맞지만 자동 추정 연결뿐 |
+| `hidden_original_refund` | 취소 · 환불 | unknown | 같은 구매로 숨긴 원거래의 환불 |
+| `cancel_metadata_conflict` | 취소 · 환불 | unknown | 취소 플래그 · 금액 · 기관 상태가 서로 다름 |
+| `unlinked_bank_cancellation` · `unlinked_card_cancellation` · `cancellation_origin_unknown` | 취소 · 환불 | unknown | 원거래를 못 찾은 취소 |
+| `inflow_from_paid_merchant` | 환불 | unknown | 결제한 가게 이름으로 들어온 입금 |
+| `inflow_counted_as_spending` | 환불 | unknown | 입금이 소비로 집계됨 |
+| `changed_salary_evidence` | 환불 | unknown | 확인한 월급 입금이 확인 뒤 바뀜 |
+| `link_processing_pending` | 전부 | unknown | 연결 후처리 대기 중 |
+| `db_error` | 전부 | unknown | DB 읽기 실패 |
 
-비영 영향도 B안에서 허용하려면 후속 합의가 필요하다:
+**영향 상한** (`impact_upper_bound`)
+- 단위는 원. 근거가 부족해 상한을 못 정하면 `None`이고, 하나라도 `None`이면 그 항목 전체가 `None`이다.
+- 같은 거래를 여러 이유가 가리키면 상한이 겹쳐 더해질 수 있다. 원거래를 모르는 입금은 가능한 과거 달마다 상한을 붙인다. 그래서 상한 합계를 실제 빠진 금액으로 읽으면 안 된다.
 
-1. 월별 허용 원화 금액과 비율, 두 조건을 모두 충족해야 하는지.
-2. 비율 분모(총소비 또는 생활비, 취소 전/후)와 분모가 0일 때의 처리.
-3. 항목별 상한을 합산할지, 같은 사건의 중복을 어떻게 제거할지.
-4. `unknown` 중 유한 상한을 입증한 경우에도 허용할지. 상한 `None`은 제한적 영향으로 증명된 것이 아니다.
+## 5. 예시
 
-## 서비스 연결 전 근거 계약 협의안 (미활성화)
+| 저장된 상황 | 중복 | 취소 | 환불 |
+|---|---|---|---|
+| 원승인 재조회로 10,000 → 7,000원 부분취소, 또는 0원 전액취소 | verified | verified | verified |
+| 체크카드 결제 + 계좌 출금이 자동으로 같은 구매 연결, 소비 1번 | verified | verified | verified |
+| 별도 카드 취소가 `suggested`로 연결됐는데 원승인 차감 없음 | verified | unresolved | unresolved |
+| 별도 취소 차감액은 맞지만 연결이 `suggested`뿐 | verified | unknown | unknown |
+| 월급 입금 + 카드 부분취소 + 체크카드 결제 | verified | verified | verified |
 
-아래는 확인된 현재 동작과 후속 합의 제안이다. 새 입금 면제 규칙이나 자동 연결 승인 규칙을 구현·활성화한 것이 아니다.
+## 6. 한계
 
-### 환불이 아닌 입금
+- DB에 저장된 거래만 본다. 기관이 안 보낸 거래, 이름 · 키 · 시간이 바뀐 중복, 앞으로 들어올 환불까지는 증명하지 않는다.
+- `verified`라고 해서 거래나 합계를 고치지 않는다. 판정만 한다.
+- 자동 취소 연결(`transfer_rules.link_cancellations` · `link_bank_cancellations`)은 `confirmed`로 올리지 않는다. 기관 원거래 참조 같은 확정 근거가 생기면 `unknown`을 더 줄일 수 있다.
+- 결제한 가게 이름으로 들어온 입금은 환불이 아니어도 막힌다. 기관 입금 성격 코드나 사용자 확인이 생기면 줄일 수 있다.
+- 전체 이력을 메모리로 읽는다. 이력이 아주 크면 성능을 따로 봐야 한다.
 
-현재 `salary_transaction_ids`는 급여일·실수령액 비율을 이용한 추정이다. `income`은 은행 입금 기본값이고,
-`confirmation_state=confirmed`는 입금이 환불이 아니라는 전용 확인이 아니다.
-현재 `OWN_TRANSFER` 연결도 날짜·금액 등의 추정으로 생성될 수 있다. 따라서 급여 추정, 적요의 급여/이자 문구,
-같은 계좌의 입출금, 사용자 카테고리 확정, 추정 내 계좌 이체를 면제 근거로 쓰지 않는다.
-
-후속 인정 근거로는 다음 중 하나를 제안한다.
-
-- 기관이 제공하는 명시적인 입금 성격 코드(급여·이자 등)와 해당 거래의 고유 참조. 기관별 코드 의미가 환불을 배제하는지 확인하고 정규화 계약을 정의해야 한다.
-- 해당 입금 한 건에 대한 사용자의 명시적 성격 확인. 확인 주체·시각·대상 거래·성격을 저장하고 금액/방향/원천 식별값 변경 시 재확인해야 한다. 기존 카테고리 확인과 구분한다.
-- 내 계좌 이체는 소유권이 확인된 양 계좌와 양측 기관 거래 참조를 연결하는 공통 이체 식별 근거. 날짜·금액·적요만 맞는 연결은 인정하지 않는다.
-
-~~확정 근거 저장 위치, 상태 전이, 취소/재조회 때의 무효화 규칙에 대한 합의와 구현 전까지
-일반 입금은 영향을 줄 수 있는 앞선 요청 월의 `refunds=unknown`을 유지한다.~~
-→ 2026-11-16: 위 '양수 입금' 결정으로 대체. 일반 입금은 막지 않고, 결제한 가게 이름으로 들어온 입금만 남긴다. 위 제안(기관 입금 성격 코드 · 사용자 성격 확인)은 그 입금을 더 줄이는 후속 근거로 남겨 둔다.
-
-### 자동 취소 연결
-
-현재 `transfer_rules.link_cancellations`는 같은 카드·승인번호의 앞선 정상 승인 중 최신 한 건을 골라
-`suggested`로 연결한다. 별도 전표 연결만으로 원승인 취소액을 갱신하지는 않는다.
-`link_bank_cancellations`는 계좌·방향·금액·적요·시점으로 연결하고 원거래를 전액 취소로 갱신하지만,
-이 값들만으로 원거래의 유일성이 증명되지는 않는다. 둘 다 `confirmed`의 근거로 자동 승격하지 않는다.
-
-자동 연결을 검증 가능한 근거로 인정하려면 기관 원거래 참조와 취소 전표 참조, 같은 소유자/결제수단,
-원거래의 유일성, 전표 재사용 금지, 누적액 범위, 원승인과 전표 구분을 함께 확인할 것을 제안한다.
-매칭을 제안한 상태와 근거가 검증된 상태를 구분해 기록하고, 재조회나 새 중복 후보 발생 시 재검증해야 한다.
-근거가 확보돼도 실제 순소비와 연결 취소액의 대조는 필수다. 이 계약은 서비스 연결 전 합의가 필요하다.
-
-현재 통합 테스트의 기대값은 다음과 같다.
-
-| 실제 저장/파이프라인 사례 | 중복 | 취소 | 환불 |
-| --- | --- | --- | --- |
-| 원승인 재조회로 10,000 → 7,000원 부분취소 / 0원 전액취소 | verified | verified | verified |
-| 체크카드와 계좌 transfer가 자동 같은 구매 연결, 순소비 1회 | verified | verified | verified |
-| 별도 카드 취소가 suggested로 연결됐으나 원승인 차감 없음 | verified | unresolved | unresolved |
-| 별도 취소 차감액은 일치하지만 suggested 관계 근거만 있음 | verified | unknown | unknown |
-| 급여 추정 입금 + 정상 카드 부분취소 + 체크카드 결제 | verified | verified | verified (11/16 전에는 unknown) |
-
-은행 자동 취소도 금액이 0원으로 맞더라도 원거래 연결 근거가 suggested뿐이면 unknown이다.
-이 표의 verified는 그 사례에 다른 검증 문제가 없다는 전제이며, 일반 입금 포함 월 전체를 통과시킨다는 뜻은 아니다.
-
-## 처리 한계
-
-- 현재 DB에서 표현·식별 가능한 거래의 정합성을 검증한다. 기관이 보내지 않은 거래, 저장되지 않은 전표, 임의로 달라진 이름/키/일시의 중복, 이후 새로 발생하는 환불의 부재까지 증명하지 않는다. 수집 및 최신성은 별도다.
-- 연결 없는 일반 입금은 급여 등 정상 소득이어도 환불과 구분할 확정 근거가 없어 `refunds=unknown`이 될 수 있다. 이 보수성을 없애려면 별도 입금 성격/원거래 근거가 필요하다.
-- `verified`가 원거래/환불을 수정하거나 소비 합계를 보정하지는 않는다. A/B 선택·미분류 보정은 예산 쪽이 맡는다.
-- 전체 이력을 메모리로 읽으므로 매우 큰 이력에 대해서는 별도 성능 검토가 필요하다.
-
-## 테스트
+## 7. 테스트
 
 ```bash
 cd backend
-../.venv/bin/python manage.py test finance.test_history_verifier finance.test_transfer_rules finance.test_card_reviews finance.test_card_sync --keepdb
+python manage.py test finance.tests.test_history_verifier finance.tests.test_transfer_rules \
+  finance.tests.test_card_reviews finance.tests.test_card_sync budgets.tests.test_design_history
 ```
 
-합성 거래로 입력 검증, 읽기 전용, 사용자 격리, 중복 후보, 같은 구매 연결, 원승인 취소,
-부분환불, 미반영 연결, 월 경계/이번 달 환불, 누적 초과, 잘못된 연결, 미분류 및 0원 영향을 검사한다.
-집계 연동 사례는 실제 `listed_transactions → transaction_item → spending_summary` 결과와 대조한다.
-`HistoryPipelineTest`는 `normalize_approvals → card_review.save_transaction → transfer_rules.apply`를 거친다.
-부분·전액 취소 재현 2건, 금액이 이미 갱신된 예전 상태 복구, 사용자 분류 보존, 정상 상태 복원,
-자동 취소의 미반영/근거 부족, 급여·이자·내 계좌 이체, 체크카드와 급여·취소의 복합 사례를 검증한다.
-실제 사용자 데이터와 대량 이력 성능은 이번 검증 범위에 포함하지 않는다.
+합성 거래로 입력 검사, 읽기 전용, 사용자 분리, 중복 후보, 같은 구매 연결, 부분 · 전액 취소, 미반영 연결, 달 경계 환불, 누적 초과, 월급 · 이자 · 내 계좌 이체를 본다. `HistoryPipelineTest`는 실제 저장 흐름(`normalize_approvals → card_review.save_transaction → transfer_rules.apply`)을 거친 결과로 확인한다.

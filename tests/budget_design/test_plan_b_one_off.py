@@ -334,7 +334,7 @@ class OneOffTests(unittest.TestCase):
         self.assertEqual([r['code'] for r in out['summary']],['surplus_left_as_free'])
 
     def test_150_random_cases_money_settings_and_ledger(self):
-        from budgets.test_design_explain import assert_ledger
+        from budgets.tests.test_design_explain import assert_ledger
         rng=random.Random(150)
         for number in range(150):
             months=history([[],[],[]])

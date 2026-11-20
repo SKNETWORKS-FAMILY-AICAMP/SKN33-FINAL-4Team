@@ -92,8 +92,8 @@ class RealInferenceTests(unittest.TestCase):
         from django.db.backends.base.base import BaseDatabaseWrapper
         from django.test import override_settings
         from budgets import design_service as service
-        from budgets.test_design_candidates import inp, priorities
-        from budgets.test_design_service import history
+        from budgets.tests.test_design_candidates import inp, priorities
+        from budgets.tests.test_design_service import history
 
         data = inp(priorities=priorities('FOOD', 'EDUCATION', 'MEDICAL_HEALTH'),
                    minimums={'FOOD': 150001}, locks={'EDUCATION': 12345})

@@ -140,7 +140,7 @@ def score(case, trace, first):
 
 
 def run_case(case, complete, today):
-    from spending_fixture.test_fixture import user
+    from spending_fixture.tests.test_fixture import user
     item = {"type": 7 if case["category"] else 6, "category": case["category"], "fresh": True}
     persona = user(case["persona"])
     with transaction.atomic():

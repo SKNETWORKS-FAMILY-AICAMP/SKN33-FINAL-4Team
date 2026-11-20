@@ -1,0 +1,413 @@
+{
+  "paths": {
+    "/api/budgets/cushion/": {
+      "get": {
+        "summary": "머니쿠션 보기",
+        "operationId": "cushionGet",
+        "tags": [
+          "쿠션"
+        ],
+        "x-source": "docs/api/cushion.md",
+        "description": "확보액·목표·월 적립금·예상 기간과 저축 계좌 잔액, 쿠션 안내 상태.\n\n- 확보액(now) = 본인 cushion_entry.amount 합계. 월급날 이틀 뒤부터 적용 중인 예산의 쿠션 배정액을 '예산 보호(planned)' 기록으로 쌓는다. 실제 이체 완료를 뜻하지 않는 앱 추정액이다.\n- 목표 = 직접 정한 금액, 없으면 월 실수령액 × 3. 소득이 없으면 null이고 missing에 takeHomeIncome.\n- 월 적립금 = 지킬 돈의 월 쿠션 적립금. 미설정 null과 0원을 구분한다.\n- pct는 반올림 비율(100 초과 그대로), bar는 0~100으로 자른 막대 길이, etaMonths는 남은 금액 ÷ 월 적립금 올림(달성 시 0).\n- savings: 연결된 은행의 예적금 계좌를 저장된 잔액으로 보여 주는 참고 정보이며 확보액 계산에 쓰지 않는다. CODEF를 새로 부르지 않는다.\n- notices.depositDue: 오늘이 쿠션 넣는 날(급여 주기 시작 다음 날). notices.balanceLow: 연결 은행 계좌 잔액 합계 < 확보액.\n- 프로필이 없어도 200이다. 자료가 없다는 이유로 404·409를 반환하지 않는다.",
+        "responses": {
+          "200": {
+            "description": "머니쿠션 상태.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CushionResponse"
+                },
+                "examples": {
+                  "normal": {
+                    "value": {
+                      "missing": [],
+                      "cushion": {
+                        "now": 300000,
+                        "goal": 8400000,
+                        "goalLabel": "월급의 3배",
+                        "goalCustom": false,
+                        "defaultGoal": 8400000,
+                        "bar": 3.57,
+                        "pct": 4,
+                        "monthly": 210000,
+                        "useRule": null,
+                        "remain": 8100000,
+                        "eta": "39회 · 약 39개월",
+                        "etaMonths": 39
+                      },
+                      "savings": {
+                        "items": [
+                          {
+                            "accountId": "9c2e7b10-5a4f-4d8e-b3c1-7f6a5e4d3c2b",
+                            "displayName": "신한 자유적금 · ****9012",
+                            "status": "connected",
+                            "organizationName": "신한은행",
+                            "balance": 1200000,
+                            "fetchedAt": "2026-11-19T09:00:00+09:00"
+                          }
+                        ],
+                        "total": 1200000,
+                        "unknownCount": 0,
+                        "asOf": "2026-11-19T09:00:00+09:00"
+                      },
+                      "notices": {
+                        "depositDue": false,
+                        "balanceLow": false
+                      }
+                    }
+                  },
+                  "notSet": {
+                    "value": {
+                      "missing": [
+                        "takeHomeIncome",
+                        "cushionMonthly"
+                      ],
+                      "cushion": {
+                        "now": 0,
+                        "goal": null,
+                        "goalLabel": "월급의 3배",
+                        "goalCustom": false,
+                        "defaultGoal": null,
+                        "bar": null,
+                        "pct": null,
+                        "monthly": null,
+                        "useRule": null,
+                        "remain": null,
+                        "eta": "급여를 먼저 입력해 주세요.",
+                        "etaMonths": null
+                      },
+                      "savings": {
+                        "items": [],
+                        "total": null,
+                        "unknownCount": 0,
+                        "asOf": null
+                      },
+                      "notices": {
+                        "depositDue": false,
+                        "balanceLow": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "머니쿠션 목표 금액 바꾸기",
+        "operationId": "cushionGoalPatch",
+        "tags": [
+          "쿠션"
+        ],
+        "x-source": "docs/api/cushion.md",
+        "description": "목표 금액을 직접 정하거나(10,000~1,000,000,000원) null로 기본값(월급의 3배)으로 되돌린다. 다른 칸은 받지 않는다 — 월 쿠션 적립금은 지킬 돈(PUT /api/budgets/protect/)에서 바꾼다.\n\n직접 정한 목표는 월급이 바뀌어도 유지된다. 값이 바뀌면 승인 전 예산 초안(draft·validated)을 만료한다(쿠션 필수 판단·추천 쿠션이 달라질 수 있음). 승인 예산·쿠션 기록은 바꾸지 않는다. 같은 값이면 바꾸지 않고 200.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CushionGoalRequest"
+              },
+              "examples": {
+                "custom": {
+                  "value": {
+                    "goalAmount": 5000000
+                  }
+                },
+                "reset": {
+                  "value": {
+                    "goalAmount": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "GET과 같은 전체 구조.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CushionResponse"
+                },
+                "example": {
+                  "missing": [],
+                  "cushion": {
+                    "now": 300000,
+                    "goal": 5000000,
+                    "goalLabel": "직접 정한 금액",
+                    "goalCustom": true,
+                    "defaultGoal": 8400000,
+                    "bar": 6.0,
+                    "pct": 6,
+                    "monthly": 210000,
+                    "useRule": null,
+                    "remain": 4700000,
+                    "eta": "23회 · 약 23개월",
+                    "etaMonths": 23
+                  },
+                  "savings": {
+                    "items": [
+                      {
+                        "accountId": "9c2e7b10-5a4f-4d8e-b3c1-7f6a5e4d3c2b",
+                        "displayName": "신한 자유적금 · ****9012",
+                        "status": "connected",
+                        "organizationName": "신한은행",
+                        "balance": 1200000,
+                        "fetchedAt": "2026-11-19T09:00:00+09:00"
+                      }
+                    ],
+                    "total": 1200000,
+                    "unknownCount": 0,
+                    "asOf": "2026-11-19T09:00:00+09:00"
+                  },
+                  "notices": {
+                    "depositDue": false,
+                    "balanceLow": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "칸 없음·다른 칸·범위 밖·문자열·소수·불리언: invalid (fields.goalAmount). 잘못된 JSON: parse_error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "내 정보(프로필)가 아직 없음: not_ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CushionResponse": {
+        "type": "object",
+        "required": [
+          "missing",
+          "cushion",
+          "savings",
+          "notices"
+        ],
+        "properties": {
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "takeHomeIncome",
+                "cushionMonthly"
+              ]
+            }
+          },
+          "cushion": {
+            "type": "object",
+            "required": [
+              "now",
+              "goal",
+              "goalLabel",
+              "goalCustom",
+              "defaultGoal",
+              "bar",
+              "pct",
+              "monthly",
+              "useRule",
+              "remain",
+              "eta",
+              "etaMonths"
+            ],
+            "properties": {
+              "now": {
+                "type": "integer",
+                "description": "확보액(원). 기록 합계 그대로이며 음수도 숨기지 않는다"
+              },
+              "goal": {
+                "type": "integer",
+                "nullable": true
+              },
+              "goalLabel": {
+                "type": "string",
+                "enum": [
+                  "월급의 3배",
+                  "직접 정한 금액"
+                ]
+              },
+              "goalCustom": {
+                "type": "boolean"
+              },
+              "defaultGoal": {
+                "type": "integer",
+                "nullable": true,
+                "description": "월급 × 3. 소득 미설정이면 null"
+              },
+              "bar": {
+                "type": "number",
+                "nullable": true,
+                "minimum": 0,
+                "maximum": 100
+              },
+              "pct": {
+                "type": "integer",
+                "nullable": true
+              },
+              "monthly": {
+                "type": "integer",
+                "nullable": true
+              },
+              "useRule": {
+                "nullable": true,
+                "description": "사용 정책 코드. 현재 항상 null"
+              },
+              "remain": {
+                "type": "integer",
+                "nullable": true
+              },
+              "eta": {
+                "type": "string"
+              },
+              "etaMonths": {
+                "type": "integer",
+                "nullable": true
+              }
+            }
+          },
+          "savings": {
+            "type": "object",
+            "required": [
+              "items",
+              "total",
+              "unknownCount",
+              "asOf"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "accountId",
+                    "displayName",
+                    "status",
+                    "organizationName",
+                    "balance",
+                    "fetchedAt"
+                  ],
+                  "properties": {
+                    "accountId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "connected",
+                        "relogin",
+                        "disconnected"
+                      ]
+                    },
+                    "organizationName": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "balance": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "원화 잔액. 모르거나 외화면 null"
+                    },
+                    "fetchedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              },
+              "total": {
+                "type": "integer",
+                "nullable": true
+              },
+              "unknownCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "asOf": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              }
+            }
+          },
+          "notices": {
+            "type": "object",
+            "required": [
+              "depositDue",
+              "balanceLow"
+            ],
+            "properties": {
+              "depositDue": {
+                "type": "boolean"
+              },
+              "balanceLow": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "CushionGoalRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "goalAmount"
+        ],
+        "properties": {
+          "goalAmount": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 10000,
+            "maximum": 1000000000
+          }
+        }
+      }
+    }
+  }
+}

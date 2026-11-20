@@ -1,4 +1,4 @@
-"""청년 정책 챗봇 (6단계 고정 흐름 + 8단계 행동 고르기). 라우터 계약은 handler(request) → dict (docs/policy-agent-router-handoff.md).
+"""청년 정책 챗봇 (6단계 고정 흐름 + 8단계 행동 고르기). 라우터 계약은 handler(request) → dict (docs/agents/청년정책.md).
 
 다음에 무엇을 할지는 decide() 한 곳에서 정한다. 버튼 · 취소 · 지역은 규칙, 직접 쓴 문장은 planner(LLM)가 고른 행동을 따르고
 LLM 이 실패하면 규칙으로 돌아간다. handle() 의 반복문 · 도구(tools.py) · 답변 모양은 같이 쓴다.

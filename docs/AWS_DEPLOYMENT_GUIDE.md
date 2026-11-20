@@ -539,7 +539,7 @@ cp docs/deployment/examples/ci-cd.yml .github/workflows/ci-cd.yml
 
 백엔드 이미지에 `scripts/`와 `docs/`도 포함합니다. 현재 거래 분류 코드와 OpenAPI 생성 코드가 이 경로를 참조하기 때문입니다. `COPY . .`로 로컬 폴더 전체를 이미지에 넣지 않습니다. `VITE_*` 환경변수는 브라우저에 공개되므로 API 비밀키를 넣지 마세요.
 
-CI는 임시 PostgreSQL 17+pgvector로 migration과 Django 앱 테스트를 수행하며, 프런트 lint·test·build를 실행합니다. 백엔드 테스트 대상은 `users`·`finance`·`budgets`·`chat`·`config`(OpenAPI 계약, 운영 Swagger 비공개)·`spending_analysis`이고, 소비 분석 fixture와 새 챗봇 엔진 테스트(`spending_fixture`, `chat.test_engine`)는 전용 설정 `--settings=spending_fixture.settings`로 따로 실행합니다(기본 설정에서는 모두 건너뜀). 2026-11-10 main(`edf77dd`) 기준으로 이 범위 전체가 통과하는 것을 확인했습니다. `budgets.test_design_candidates`의 예전 실패 11개는 #89에서 해결되어 지금은 없습니다. 기존 코드의 실패나 패키지 설치 문제가 있으면 먼저 해결합니다. 이 가이드에서는 현재 저장소의 의존성 버전을 유지합니다. 패키지를 찾을 수 없다는 오류가 나면 팀의 실제 설치 버전과 저장소 고정 버전을 대조하세요.
+CI는 임시 PostgreSQL 17+pgvector로 migration과 Django 앱 테스트를 수행하며, 프런트 lint·test·build를 실행합니다. 백엔드 테스트 대상은 `users`·`finance`·`budgets`·`chat`·`config`(OpenAPI 계약, 운영 Swagger 비공개)·`spending_analysis`이고, 소비 분석 fixture와 새 챗봇 엔진 테스트(`spending_fixture`, `chat.tests.test_engine`)는 전용 설정 `--settings=spending_fixture.settings`로 따로 실행합니다(기본 설정에서는 모두 건너뜀). 2026-11-10 main(`edf77dd`) 기준으로 이 범위 전체가 통과하는 것을 확인했습니다. `budgets.tests.test_design_candidates`의 예전 실패 11개는 #89에서 해결되어 지금은 없습니다. 기존 코드의 실패나 패키지 설치 문제가 있으면 먼저 해결합니다. 이 가이드에서는 현재 저장소의 의존성 버전을 유지합니다. 패키지를 찾을 수 없다는 오류가 나면 팀의 실제 설치 버전과 저장소 고정 버전을 대조하세요.
 
 현재 기본 권한은 `AllowAny`이고 API별로 권한을 지정하므로 실제 공개 전에 로그인·소유자 검사도 기능 점검합니다. HTTPS 설정을 추가하는 것만으로 전체 API의 접근 통제가 완성되지는 않습니다. [Django 배포 점검](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/)
 

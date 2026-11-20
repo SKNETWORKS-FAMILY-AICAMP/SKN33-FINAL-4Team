@@ -20,7 +20,7 @@
             "description": "UUID. 없는 항목·남의 항목·형식 오류는 모두 404."
           }
         ],
-        "description": "메시지는 오래된 순. active_agent·slots 내부 상태는 응답하지 않습니다. 화면이 기억한 conversationId로 조회하고 없거나 404이면 새 대화로 시작합니다. 대화 목록 API는 2차이며 페이지 나누기는 미정입니다.",
+        "description": "메시지는 오래된 순. active_agent·slots 내부 상태는 응답하지 않습니다. 화면이 기억한 conversationId로 조회하고 없거나 404이면 새 대화로 시작합니다.",
         "responses": {
           "200": {
             "description": "정상 처리",
@@ -349,7 +349,7 @@
             "description": "UUID. 없는 항목·남의 항목·형식 오류는 모두 404."
           }
         ],
-        "description": "회원 본인의 공용 async_task를 조회한다. queued·running이면 재조회, succeeded·failed·canceled이면 중단한다. 시작 API는 1차로 요청 안에서 작업을 끝내므로 처음부터 succeeded일 수 있다. result는 succeeded일 때, error는 failed일 때만 객체이며 나머지는 null이다. finance_sync 결과는 FinanceSyncResult를 참고한다. 기관 전부 실패해도 실행을 마치면 작업은 succeeded이고 기관별 실패는 result.items[].error에 있다. 공용 실패 코드는 server_error·stale. 10분 넘게 멈춘 작업은 다음 시작 요청 때 failed/stale로 닫는다. 예산 조정안의 조건 변경은 succeeded를 바꾸지 않고 승인 단계에서 만료를 알린다. 조회 간격·최대 대기 시간·작업 취소 API는 결정 후다.",
+        "description": "회원 본인의 공용 async_task를 조회한다. queued·running이면 재조회, succeeded·failed·canceled이면 중단한다. 예산 추천 · 조정은 요청 안에서 끝나 처음부터 succeeded일 수 있고, 금융 다시 불러오기 · 카드 첫 연결은 서버 뒤에서 실행되어 queued·running으로 시작한다. result는 succeeded일 때, error는 failed일 때만 객체이며 나머지는 null이다. finance_sync 결과는 FinanceSyncResult를 참고한다. 기관 전부 실패해도 실행을 마치면 작업은 succeeded이고 기관별 실패는 result.items[].error에 있다. 공용 실패 코드는 server_error·stale. 10분 넘게 멈춘 작업은 다음 시작 요청 때 failed/stale로 닫는다. 예산 조정안의 조건 변경은 succeeded를 바꾸지 않고 승인 단계에서 만료를 알린다.",
         "responses": {
           "200": {
             "description": "정상 처리",
@@ -718,7 +718,7 @@
           "lines",
           "updatedAt"
         ],
-        "description": "total·fixedAmount·previousTotal·unclassifiedAmount는 항상 전체 소비 기준. scope=category이면 categories는 해당 항목만(소비 없음은 빈 배열). 비교 불가이면 모든 비교 금액/차이/비율은 null. topSpending은 UNCLASSIFIED를 제외하고 동률 모두 포함, 단일 카테고리 또는 0원은 null. 소비가 없으면 total=0, categories=[], 0원 카드와 안내 문장을 준다. coverage는 1차에서 제외. 환불로 순소비가 음수인 경우 총액·순위·비율 표현은 미정이며 비음수 예시를 하한 정책으로 간주하지 않는다."
+        "description": "total·fixedAmount·previousTotal·unclassifiedAmount는 항상 전체 소비 기준. scope=category이면 categories는 해당 항목만(소비 없음은 빈 배열). 비교 불가이면 모든 비교 금액/차이/비율은 null. topSpending은 UNCLASSIFIED를 제외하고 동률 모두 포함, 단일 카테고리 또는 0원은 null. 소비가 없으면 total=0, categories=[], 0원 카드와 안내 문장을 준다."
       },
       "ChatTextContent": {
         "type": "object",

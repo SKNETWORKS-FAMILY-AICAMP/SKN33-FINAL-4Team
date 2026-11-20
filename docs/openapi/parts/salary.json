@@ -1,0 +1,584 @@
+{
+  "paths": {
+    "/api/budgets/salary/deposits/": {
+      "get": {
+        "summary": "월급 확인할 입금 보기",
+        "operationId": "salaryDeposits",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "급여 구간(이번 월급날 7일 전 ~ 다음 월급날 8일 전)마다 고를 수 있는 입금과 지금 자동 인식 기준(pattern). 조회할 때 사용자 확인의 기준값(금액·날짜·적요·계좌)을 다시 비교하고 자동 인정을 맞춘다.\n\n- isCandidate: 관리 대상 원화 입출금 계좌의 입금 중 등록 실수령액 80% 이상이고 판단이 없는 것, 또는 재확인(recheck) 대상.\n- decision: null · confirmed(사용자 확인) · auto(자동 인정) · rejected(아님) · recheck(기준 변경·자동 인정 무효로 재확인 필요).\n- 자동 인정: 사용자가 기준으로 고른 입금(회원당 1개)과 같은 계좌·같은 적요 규칙이고 금액이 기준의 절반 이상인 입금 중, 그 회차 월급날에 가장 가까운 1건. 그 회차에 사용자 확인 급여가 있으면 자동으로 더하지 않는다. LLM은 쓰지 않는다.\n- 다음 회차 구간이 아직 시작 전이면 빠진다. 미래 날짜·취소·내 계좌 이체 등 지금 고를 수 없는 거래는 표시하지 않는다.",
+        "responses": {
+          "200": {
+            "description": "급여 구간별 입금과 자동 인식 기준.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryDepositsResponse"
+                },
+                "example": {
+                  "windows": [
+                    {
+                      "payCycleOn": "2026-10-25",
+                      "from": "2026-10-18",
+                      "to": "2026-11-17",
+                      "items": [
+                        {
+                          "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                          "payCycleOn": "2026-10-25",
+                          "date": "2026-10-24",
+                          "amount": 2800000,
+                          "description": "(주)머니쿠션",
+                          "account": {
+                            "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                            "displayName": "국민 급여통장 · ****5678",
+                            "status": "connected"
+                          },
+                          "decision": null,
+                          "isPattern": false,
+                          "isCandidate": true,
+                          "patternUnusableReason": null
+                        }
+                      ]
+                    },
+                    {
+                      "payCycleOn": "2026-11-25",
+                      "from": "2026-11-18",
+                      "to": "2026-11-20",
+                      "items": []
+                    }
+                  ],
+                  "pattern": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "급여일 미등록: invalid (fields.payday).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/budgets/salary/decisions/": {
+      "post": {
+        "summary": "월급 맞아요 · 아니에요 · 판단 지우기",
+        "operationId": "salaryDecide",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "회원 잠금 안에서 저장 시점의 거래 상태를 다시 검증한다.\n\n- confirmed: 고른 입금이 모두 같은 급여 회차여야 한다. 그 회차의 판단을 이 목록으로 바꾼다(목록에 없는 확인·자동 인정은 판단 없음으로). 여러 건(분할 급여)을 확인하면 자동 인식 기준을 끈다.\n- usePattern=true: confirmed이고 한 건이며 적요를 기준으로 쓸 수 있을 때만. 빈 적요·입금·이체·급여·월급처럼 일반적인 적요는 기준으로 못 쓴다.\n- rejected: 재조회로 다시 후보·자동 인정이 되지 않는다. 기준이었다면 기준도 풀린다.\n- none: 판단 줄을 지운다(확인 취소). 자동 인정을 지우면 다음 조회 때 다시 자동 인정될 수 있다.\n- 영향 받은 회차의 인정 합계를 다시 계산한다. 등록 실수령액·승인 예산은 바꾸지 않는다. 인정 합계가 바뀌어 '이번 주기만 받은 금액' 기준이 풀렸으면 basisReset=true.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalaryDecisionRequest"
+              },
+              "examples": {
+                "confirm": {
+                  "value": {
+                    "transactionIds": [
+                      "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e"
+                    ],
+                    "decision": "confirmed",
+                    "usePattern": true
+                  }
+                },
+                "reject": {
+                  "value": {
+                    "transactionIds": [
+                      "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e"
+                    ],
+                    "decision": "rejected"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "GET과 같은 모양 + basisReset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryDecisionResponse"
+                },
+                "example": {
+                  "windows": [
+                    {
+                      "payCycleOn": "2026-10-25",
+                      "from": "2026-10-18",
+                      "to": "2026-11-17",
+                      "items": [
+                        {
+                          "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                          "payCycleOn": "2026-10-25",
+                          "date": "2026-10-24",
+                          "amount": 2800000,
+                          "description": "(주)머니쿠션",
+                          "account": {
+                            "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                            "displayName": "국민 급여통장 · ****5678",
+                            "status": "connected"
+                          },
+                          "decision": "confirmed",
+                          "isPattern": true,
+                          "isCandidate": false,
+                          "patternUnusableReason": null
+                        }
+                      ]
+                    },
+                    {
+                      "payCycleOn": "2026-11-25",
+                      "from": "2026-11-18",
+                      "to": "2026-11-20",
+                      "items": []
+                    }
+                  ],
+                  "pattern": {
+                    "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                    "payCycleOn": "2026-10-25",
+                    "date": "2026-10-24",
+                    "amount": 2800000,
+                    "description": "(주)머니쿠션",
+                    "account": {
+                      "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                      "displayName": "국민 급여통장 · ****5678",
+                      "status": "connected"
+                    },
+                    "decision": "confirmed",
+                    "isPattern": true,
+                    "isCandidate": false,
+                    "patternUnusableReason": null
+                  },
+                  "basisReset": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "없는·남의·출금 거래, 다른 회차 섞임, 기준으로 못 쓰는 적요: invalid (fields.transactionIds · fields.usePattern).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 요청 번호에 다른 내용: idempotency_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/budgets/salary/pattern/": {
+      "delete": {
+        "summary": "월급 자동 인식 끄기",
+        "operationId": "salaryPatternDelete",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "자동 인식 기준을 끈다(기준 거래의 확인은 그대로). 이번·다음 회차에서 사용자 확인 없는 자동 인정은 확인 대상으로 돌아간다. 지난 회차 기록은 바꾸지 않는다. 기준이 없어도 200.",
+        "responses": {
+          "200": {
+            "description": "GET /api/budgets/salary/deposits/와 같은 모양.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryDepositsResponse"
+                },
+                "example": {
+                  "windows": [
+                    {
+                      "payCycleOn": "2026-10-25",
+                      "from": "2026-10-18",
+                      "to": "2026-11-17",
+                      "items": [
+                        {
+                          "transactionId": "5b9f1c2e-3d4a-4b5c-8d6e-7f8a9b0c1d2e",
+                          "payCycleOn": "2026-10-25",
+                          "date": "2026-10-24",
+                          "amount": 2800000,
+                          "description": "(주)머니쿠션",
+                          "account": {
+                            "accountId": "27d3dbb3-1ee8-43b7-9134-9e8ff01991d4",
+                            "displayName": "국민 급여통장 · ****5678",
+                            "status": "connected"
+                          },
+                          "decision": null,
+                          "isPattern": false,
+                          "isCandidate": true,
+                          "patternUnusableReason": null
+                        }
+                      ]
+                    },
+                    {
+                      "payCycleOn": "2026-11-25",
+                      "from": "2026-11-18",
+                      "to": "2026-11-20",
+                      "items": []
+                    }
+                  ],
+                  "pattern": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "급여일 미등록: invalid (fields.payday).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/budgets/salary/gap/": {
+      "post": {
+        "summary": "월급 차이 안내에 답하기",
+        "operationId": "salaryGapAnswer",
+        "tags": [
+          "예산"
+        ],
+        "x-source": "docs/api/salary.md",
+        "description": "홈 period.salaryGap(받은 월급이 등록 실수령액과 1만 원 이상 · 3% 이상 차이)에 답한다. 등록 실수령액은 바꾸지 않는다.\n\n- apply: 이번 주기만 받은 금액으로 지킬 돈·추천을 나눈다(budget_cycle.income_basis). 승인 전 초안은 만료하고, 승인 예산은 지킬 돈 저장 → 새 추천 승인으로 바뀐다.\n- keep: 기준은 그대로.\n- 두 답 모두 같은 받은 금액으로는 다시 묻지 않게 기록한다. 받은 금액이 나중에 바뀌면(확인 취소·분할 입금 추가) 기준을 등록 실수령액으로 되돌리고 다시 묻는다.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalaryGapRequest"
+              },
+              "examples": {
+                "apply": {
+                  "value": {
+                    "answer": "apply",
+                    "salaryAmount": 2200000
+                  }
+                },
+                "keep": {
+                  "value": {
+                    "answer": "keep",
+                    "salaryAmount": 2200000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "지금 이 주기 예산 기준 금액.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryGapResponse"
+                },
+                "examples": {
+                  "apply": {
+                    "value": {
+                      "incomeBasis": 2200000,
+                      "salaryAmount": 2200000
+                    }
+                  },
+                  "keep": {
+                    "value": {
+                      "incomeBasis": null,
+                      "salaryAmount": 2200000
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "화면이 본 받은 금액이 지금 인정 합계와 다름(fields.salaryAmount), 급여일 미등록(fields.payday), 다른 칸: invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "로그인하지 않음: not_authenticated. CSRF 검증 실패: permission_denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "같은 요청 번호에 다른 내용: idempotency_conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SalaryDeposit": {
+        "type": "object",
+        "required": [
+          "transactionId",
+          "payCycleOn",
+          "date",
+          "amount",
+          "description",
+          "account",
+          "decision",
+          "isPattern",
+          "isCandidate",
+          "patternUnusableReason"
+        ],
+        "properties": {
+          "transactionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payCycleOn": {
+            "type": "string",
+            "format": "date",
+            "description": "귀속 급여 회차 = 급여 주기 시작일"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "입금 적요"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountDisplay"
+          },
+          "decision": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "confirmed",
+              "auto",
+              "rejected",
+              "recheck",
+              null
+            ]
+          },
+          "isPattern": {
+            "type": "boolean"
+          },
+          "isCandidate": {
+            "type": "boolean"
+          },
+          "patternUnusableReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "이 적요를 자동 인식 기준으로 못 쓰는 이유. 쓸 수 있으면 null"
+          }
+        }
+      },
+      "SalaryDepositsResponse": {
+        "type": "object",
+        "required": [
+          "windows",
+          "pattern"
+        ],
+        "properties": {
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "payCycleOn",
+                "from",
+                "to",
+                "items"
+              ],
+              "properties": {
+                "payCycleOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "from": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "to": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SalaryDeposit"
+                  }
+                }
+              }
+            }
+          },
+          "pattern": {
+            "type": "object",
+            "nullable": true,
+            "description": "자동 인식 기준 입금 (SalaryDeposit과 같은 모양). 없으면 null"
+          }
+        }
+      },
+      "SalaryDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transactionIds",
+          "decision"
+        ],
+        "properties": {
+          "transactionIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 31,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "rejected",
+              "none"
+            ]
+          },
+          "usePattern": {
+            "type": "boolean",
+            "description": "confirmed에서만. 이 입금을 자동 인식 기준으로"
+          }
+        }
+      },
+      "SalaryDecisionResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SalaryDepositsResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "basisReset"
+            ],
+            "properties": {
+              "basisReset": {
+                "type": "boolean",
+                "description": "이 판단으로 '이번 주기만 받은 금액' 기준이 풀렸으면 true"
+              }
+            }
+          }
+        ]
+      },
+      "SalaryGapRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "answer",
+          "salaryAmount"
+        ],
+        "properties": {
+          "answer": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "keep"
+            ]
+          },
+          "salaryAmount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "화면이 본 받은 금액(salaryGap.received)"
+          }
+        }
+      },
+      "SalaryGapResponse": {
+        "type": "object",
+        "required": [
+          "incomeBasis",
+          "salaryAmount"
+        ],
+        "properties": {
+          "incomeBasis": {
+            "type": "integer",
+            "nullable": true,
+            "description": "이번 주기 예산 기준 금액. 등록 실수령액 기준이면 null"
+          },
+          "salaryAmount": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

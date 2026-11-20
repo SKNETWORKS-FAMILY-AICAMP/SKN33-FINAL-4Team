@@ -52,11 +52,7 @@
           현재 작성된 {{ contract_count }}개 API의 요청·응답·오류 규칙을 기능별로 확인합니다. 이 화면은 명세 조회용입니다. 실제 호출은 ‘현재 서버 확인’에서 할 수 있습니다.
           {% endif %}
         </p>
-        <div class="docs-status" aria-label="전체 명세의 구현 상태">
-          <span>구현 {{ implemented_count }}개</span>
-          <span class="mock">목업 {{ mock_count }}개</span>
-          <span class="planned">미구현 {{ planned_count }}개</span>
-        </div>
+        {% if planned_count %}<div class="docs-status" aria-label="전체 명세의 구현 상태"><span class="planned">미구현 {{ planned_count }}개</span></div>{% endif %}
         <nav class="docs-nav" aria-label="API 문서 보기">
           <a href="{{ contract_docs_url }}"{% if not runtime %} aria-current="page"{% endif %}>전체 명세 {{ contract_count }}개</a>
           <a href="{{ runtime_docs_url }}"{% if runtime %} aria-current="page"{% endif %}>현재 서버 확인 {{ runtime_count }}개</a>
@@ -67,7 +63,7 @@
     <p class="docs-note">
       {% if runtime %}API를 펼친 뒤 <strong>Try it out → Execute</strong>로 요청을 보낼 수 있습니다. 로그인이 필요한 API는 같은 주소(localhost 또는 127.0.0.1)에서 먼저 로그인하세요. {% endif %}
       인증 계약은 Django 세션 쿠키 방식입니다. 저장 요청에는 CSRF 쿠키와 X-CSRFToken 헤더가 필요합니다.
-      {% if runtime %}저장 요청의 X-CSRFToken은 이 화면이 자동으로 넣으며, 실제 DB가 바뀝니다.{% else %}‘미구현’ API는 명세가 작성된 상태이며 서버 기능은 아직 연결되지 않았습니다.{% endif %}
+      {% if runtime %}저장 요청의 X-CSRFToken은 이 화면이 자동으로 넣으며, 실제 DB가 바뀝니다.{% endif %}
     </p>
     <main id="swagger-ui" aria-label="Swagger API 명세"></main>
     <script src="{{ swagger_ui_bundle }}"></script>

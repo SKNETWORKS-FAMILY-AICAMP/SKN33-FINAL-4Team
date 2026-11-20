@@ -30,7 +30,7 @@ def main():
     django.setup()
     from django.test.runner import DiscoverRunner
     failures = DiscoverRunner(verbosity=1, interactive=False, keepdb=False).run_tests([
-        "finance.test_loan_sandbox.LoanSandboxTest",
+        "finance.tests.test_loan_sandbox.LoanSandboxTest",
     ])
     if not failures:
         print("PASS: actual CODEF sandbox -> isolated PostgreSQL; create, repeat update, user input preservation")

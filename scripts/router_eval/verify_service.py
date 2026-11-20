@@ -18,7 +18,7 @@ django.setup()
 from django.db import connection
 from django.test import Client, override_settings
 from spending_fixture import seed, set_login
-from spending_fixture.test_service import SERVICE, PASSWORD, login
+from spending_fixture.tests.test_service import SERVICE, PASSWORD, login
 
 COMPARE = "지난달보다 식비 더 썼어?"
 # 기대는 실제 실행 전에 고정한다. 각 시나리오는 새 대화다.

@@ -43,7 +43,7 @@ class SimulatorTests(unittest.TestCase):
         self.assertNotEqual(result['selected']['allocations'], normal['selected']['allocations'])
         self.assertEqual(result['selected']['allocations'], result['engine']['candidates'][0]['result']['allocations'])
         self.assertEqual(result['selected']['selection_source'], 'llm_tools')
-        from budgets.test_design_explain import assert_ledger
+        from budgets.tests.test_design_explain import assert_ledger
         assert_ledger(self, result['selected']['explanations'], result['selected']['allocations'])
         self.assertTrue(all(not e['text'] or e['text'] in sim.describe(result) for e in result['selected']['explanations']))
         self.assertNotIn('reasons', result['selected'])
@@ -60,7 +60,7 @@ class SimulatorTests(unittest.TestCase):
             result = sim.calculate(form, use_llm=True)
         self.assertTrue(request.called)
         self.assertEqual(result['selected']['selection_source'], 'llm_tools')
-        from budgets.test_design_explain import assert_ledger
+        from budgets.tests.test_design_explain import assert_ledger
         assert_ledger(self, result['selected']['explanations'], result['selected']['allocations'])
         self.assertTrue(all(not e['text'] or e['text'] in sim.describe(result) for e in result['selected']['explanations']))
         self.assertEqual(result['selected']['allocations']['TRANSPORT_CAR'], 60000)
